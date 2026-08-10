@@ -1,4 +1,5 @@
 import { useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { SlidersHorizontal } from "lucide-react";
 import LLMSelector from "@/components/common/LLMSelector";
 import { useCreationSetup } from "@/components/onboarding/CreationSetupContext";
@@ -6,6 +7,7 @@ import AppVersionBadge from "@/components/layout/AppVersionBadge";
 import DesktopBrandMark from "@/components/layout/DesktopBrandMark";
 import LiveExecutionDialog from "@/components/liveExecution/LiveExecutionDialog";
 import ProjectGithubLink from "@/components/layout/ProjectGithubLink";
+import LanguageSwitcher from "@/components/layout/LanguageSwitcher";
 import { Button } from "@/components/ui/button";
 import {
   AUTO_DIRECTOR_MOBILE_CLASSES,
@@ -19,6 +21,7 @@ interface NavbarProps {
 
 export default function Navbar(props: NavbarProps) {
   const { workspaceNavMode, onWorkspaceNavModeChange } = props;
+  const { t } = useTranslation();
   const { openQuickSetup } = useCreationSetup();
   const location = useLocation();
   const isHome = location.pathname === "/";
@@ -31,7 +34,7 @@ export default function Navbar(props: NavbarProps) {
         <DesktopBrandMark className="h-8 w-8 shrink-0 drop-shadow-none" />
         <div className="flex min-w-0 flex-col leading-tight">
           <div className="flex min-w-0 items-center gap-1.5">
-            <span className="min-w-0 truncate text-sm font-semibold">AI 小说创作工作台</span>
+            <span className="min-w-0 truncate text-sm font-semibold">{t("navbar.title", "AI 小说创作工作台")}</span>
             <AppVersionBadge />
             <ProjectGithubLink />
           </div>
@@ -47,10 +50,11 @@ export default function Navbar(props: NavbarProps) {
             className={useMobileAutoDirectorShell ? AUTO_DIRECTOR_MOBILE_CLASSES.navbarWorkspaceToggle : undefined}
             onClick={() => onWorkspaceNavModeChange?.(workspaceNavMode === "workspace" ? "project" : "workspace")}
           >
-            {workspaceNavMode === "workspace" ? "项目导航" : "创作导航"}
+            {workspaceNavMode === "workspace" ? t("navbar.projectNav", "项目导航") : t("navbar.createNav", "创作导航")}
           </Button>
         ) : null}
         <LiveExecutionDialog />
+        <LanguageSwitcher />
         <Button
           type="button"
           size="sm"
@@ -59,15 +63,10 @@ export default function Navbar(props: NavbarProps) {
           onClick={openQuickSetup}
         >
           <SlidersHorizontal className="h-4 w-4" />
-          <span className="hidden lg:inline">模型设置</span>
+          <span className="hidden lg:inline">{t("navbar.quickSetup", "模型设置")}</span>
         </Button>
         <div className={useMobileAutoDirectorShell ? AUTO_DIRECTOR_MOBILE_CLASSES.navbarModelSelector : undefined}>
-          <LLMSelector
-            compact
-            showBadge={false}
-            showHelperText={false}
-            showCompactTemperature
-          />
+          <LLMSelector compact showBadge={false} showHelperText={false} />
         </div>
       </div>
     </header>

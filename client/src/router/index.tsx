@@ -8,17 +8,16 @@ const Home = lazy(() => import("@/pages/Home"));
 const HelpPage = lazy(() => import("@/pages/help/HelpPage"));
 const NovelList = lazy(() => import("@/pages/novels/NovelList"));
 const NovelCreate = lazy(() => import("@/pages/novels/NovelCreate"));
-const CreationStudioPage = lazy(() => import("@/pages/creationStudio/CreationStudioPage"));
-const ShortStoryStudioPage = lazy(() => import("@/pages/shortStory/ShortStoryStudioPage"));
 const AutoDirectorCreatePage = lazy(() => import("@/pages/novels/autoDirector/AutoDirectorCreatePage"));
 const SimpleNovelShelfPage = lazy(() => import("@/pages/novels/simpleCreation/SimpleNovelShelfPage"));
 const NovelPreview = lazy(() => import("@/pages/novels/NovelPreview"));
-const NarrativeFormNovelEditRoute = lazy(() => import("@/pages/novels/NarrativeFormNovelEditRoute"));
+const NovelEdit = lazy(() => import("@/pages/novels/NovelEdit"));
 const NovelChapterEdit = lazy(() => import("@/pages/novels/NovelChapterEdit"));
 const DramaWorkspacePage = lazy(() => import("@/pages/drama/DramaWorkspacePage"));
 const DramaProjectPage = lazy(() => import("@/pages/drama/DramaProjectPage"));
 const ComicWorkspacePage = lazy(() => import("@/pages/comic/ComicWorkspacePage"));
 const ComicProjectPage = lazy(() => import("@/pages/comic/ComicProjectPage"));
+const VideoWorkspacePage = lazy(() => import("@/pages/video/VideoWorkspacePage"));
 const CreativeHubPage = lazy(() => import("@/pages/creativeHub/CreativeHubPage"));
 const ChatPage = lazy(() => import("@/pages/chat/ChatPage"));
 const BookAnalysisPage = lazy(() => import("@/pages/bookAnalysis/BookAnalysisPage"));
@@ -37,6 +36,8 @@ const WorldGenerator = lazy(() => import("@/pages/worlds/WorldGenerator"));
 const WorldWorkspace = lazy(() => import("@/pages/worlds/WorldWorkspace"));
 const WritingFormulaPage = lazy(() => import("@/pages/writingFormula/WritingFormulaPage"));
 const CharacterLibrary = lazy(() => import("@/pages/characters/CharacterLibrary"));
+const MultimediaHub = lazy(() => import("@/pages/multimedia/MultimediaHub"));
+const StockStudioPage = lazy(() => import("@/pages/stock/StockStudioPage"));
 
 const routes: RouteObject[] = [
   {
@@ -44,20 +45,21 @@ const routes: RouteObject[] = [
     element: <AppLayout />,
     children: [
       { index: true, element: <Home /> },
+      { path: "stock", element: <StockStudioPage /> },
       { path: "help", element: <HelpPage /> },
       { path: "novels", element: <NovelList /> },
-      { path: "create", element: <CreationStudioPage /> },
       { path: "novels/create", element: <NovelCreate /> },
       { path: "novels/auto-director", element: <AutoDirectorCreatePage /> },
       { path: "novels/:id/simple", element: <SimpleNovelShelfPage /> },
-      { path: "novels/:id/story", element: <ShortStoryStudioPage /> },
       { path: "novels/:id/preview", element: <NovelPreview /> },
-      { path: "novels/:id/edit", element: <NarrativeFormNovelEditRoute /> },
+      { path: "novels/:id/edit", element: <NovelEdit /> },
       { path: "novels/:id/chapters/:chapterId", element: <NovelChapterEdit /> },
-      { path: "drama", element: <DramaWorkspacePage /> },
+      { path: "multimedia", element: <MultimediaHub /> },
+      { path: "drama", element: <Navigate to="/multimedia?tab=drama" replace /> },
       { path: "drama/projects/:id", element: <DramaProjectPage /> },
-      { path: "comic", element: <ComicWorkspacePage /> },
+      { path: "comic", element: <Navigate to="/multimedia?tab=comic" replace /> },
       { path: "comic/projects/:id", element: <ComicProjectPage /> },
+      { path: "video", element: <Navigate to="/multimedia?tab=video" replace /> },
       { path: "creative-hub", element: <CreativeHubPage /> },
       { path: "chat-legacy", element: <ChatPage /> },
       { path: "chat", element: <Navigate to="/creative-hub" replace /> },

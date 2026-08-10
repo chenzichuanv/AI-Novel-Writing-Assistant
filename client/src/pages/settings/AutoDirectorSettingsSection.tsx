@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -48,39 +50,39 @@ export default function AutoDirectorSettingsSection(props: {
   const saveAutoDirectorChannelsMutation = useMutation({
     mutationFn: saveAutoDirectorChannelSettings,
     onSuccess: async (response) => {
-      onActionResult(response.message ?? "导演跟进通道配置已保存。");
+      onActionResult(response.message ?? i18next.t("dict.gen_a20173bc"));
       if (response.data) {
         setAutoDirectorChannelDraft(buildAutoDirectorChannelDraft(response.data));
       }
       await queryClient.invalidateQueries({ queryKey: queryKeys.settings.autoDirectorChannels });
     },
     onError: (error) => {
-      onActionResult(error instanceof Error ? error.message : "保存导演跟进通道配置失败。");
+      onActionResult(error instanceof Error ? error.message : i18next.t("dict.saveDirectorFollowUpChannelConfigFailed"));
     },
   });
 
   const saveApprovalPreferenceMutation = useMutation({
     mutationFn: saveAutoDirectorApprovalPreferenceSettings,
     onSuccess: async (response) => {
-      onActionResult(response.message ?? "审批授权偏好已保存。");
+      onActionResult(response.message ?? i18next.t("dict.gen_0c54d981"));
       if (response.data) {
         setApprovalPreferenceDraft(response.data.approvalPointCodes);
       }
       await queryClient.invalidateQueries({ queryKey: queryKeys.settings.autoDirectorApprovalPreferences });
     },
     onError: (error) => {
-      onActionResult(error instanceof Error ? error.message : "保存审批授权偏好失败。");
+      onActionResult(error instanceof Error ? error.message : i18next.t("dict.saveApprovalAuthorizationPreferenceFailed"));
     },
   });
 
   const savePendingReviewAutoPromotionMutation = useMutation({
     mutationFn: savePendingReviewAutoPromotionSettings,
     onSuccess: async (response) => {
-      onActionResult(response.message ?? "待确认状态自动放行设置已保存。");
+      onActionResult(response.message ?? i18next.t("dict.gen_58e7d74a"));
       await queryClient.invalidateQueries({ queryKey: queryKeys.settings.pendingReviewAutoPromotion });
     },
     onError: (error) => {
-      onActionResult(error instanceof Error ? error.message : "保存待确认状态自动放行设置失败。");
+      onActionResult(error instanceof Error ? error.message : i18next.t("dict.gen_3cbc83c7"));
     },
   });
 

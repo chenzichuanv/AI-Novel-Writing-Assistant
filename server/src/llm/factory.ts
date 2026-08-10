@@ -304,13 +304,9 @@ export async function resolveLLMClientOptions(
   ) {
     effectiveMaxTokens = Math.min(effectiveMaxTokens, structuredProfile.safeStructuredMaxTokens);
   }
-  const usesEnableThinkingFlag = Boolean(
-    shouldForceDisableReasoning
-      && structuredProfile?.family.includes("qwen"),
-  );
   const baseModelKwargs: Record<string, unknown> = {
     ...(options.modelKwargs ?? {}),
-    ...(usesEnableThinkingFlag ? { enable_thinking: false } : {}),
+    ...(shouldForceDisableReasoning ? { enable_thinking: false } : {}),
   };
   const reasoningBehavior = resolveProviderReasoningBehavior({
     provider: resolvedProvider,

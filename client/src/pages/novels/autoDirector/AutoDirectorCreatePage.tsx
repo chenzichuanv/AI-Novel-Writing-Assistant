@@ -1,10 +1,11 @@
+import i18next from "i18next";
+const t = (key: string, options?: any) => i18next.t(key, options) as string;
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { UnifiedTaskDetail } from "@ai-novel/shared/types/task";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { flattenGenreTreeOptions, getGenreTree } from "@/api/genre";
-import { flattenStoryModeTreeOptions, getStoryModeTree } from "@/api/storyMode";
 import { bootstrapNovelWorkflow } from "@/api/novelWorkflow";
 import { queryKeys } from "@/api/queryKeys";
 import { getWorldList } from "@/api/world";
@@ -69,14 +70,7 @@ export default function AutoDirectorCreatePage() {
     queryKey: queryKeys.genres.all,
     queryFn: getGenreTree,
   });
-  const storyModeTreeQuery = useQuery({
-    queryKey: queryKeys.storyModes.all,
-    queryFn: getStoryModeTree,
-  });
-  const genreTree = genreTreeQuery.data?.data ?? [];
-  const storyModeTree = storyModeTreeQuery.data?.data ?? [];
-  const genreOptions = flattenGenreTreeOptions(genreTree);
-  const storyModeOptions = flattenStoryModeTreeOptions(storyModeTree);
+  const genreOptions = flattenGenreTreeOptions(genreTreeQuery.data?.data ?? []);
   const worldOptions = worldListQuery.data?.data ?? [];
 
   useEffect(() => {
@@ -115,7 +109,7 @@ export default function AutoDirectorCreatePage() {
       }
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "恢复自动导演任务失败。");
+      toast.error(error instanceof Error ? error.message : i18next.t("dict.gen_d20b5da1"));
     },
   });
 
@@ -132,7 +126,6 @@ export default function AutoDirectorCreatePage() {
   const controller = useAutoDirectorCreateController({
     basicForm,
     genreOptions,
-    storyModeOptions,
     worldOptions,
     workflowTaskId: normalizedTaskId,
     restoredTask: restoredWorkflowTask,
@@ -145,27 +138,11 @@ export default function AutoDirectorCreatePage() {
       return;
     }
     setCompletedStages((prev) => new Set([...prev, ...completedThrough("model_run")]));
+    setActiveStage("candidates");
   }, [controller.batches.length, controller.hasActiveDirectorTask]);
 
-  const latestProductionFoundation = controller.batches.at(-1)?.candidates[0]?.productionFoundation ?? null;
-  const selectedGenre = genreOptions.find((option) => option.id === controller.directorBasicForm.genreId) ?? null;
-  const selectedStoryMode = storyModeOptions.find(
-    (option) => option.id === controller.directorBasicForm.primaryStoryModeId,
-  ) ?? null;
-  const latestGenreFoundation = latestProductionFoundation?.genre;
-  const latestPrimaryStoryModeFoundation = latestProductionFoundation?.primaryStoryMode;
-  const selectedGenreSource = latestGenreFoundation?.id === selectedGenre?.id
-    ? latestGenreFoundation?.source
-    : selectedGenre ? "user_selected" as const : undefined;
-  const selectedStoryModeSource = latestPrimaryStoryModeFoundation?.id === selectedStoryMode?.id
-    ? latestPrimaryStoryModeFoundation?.source
-    : selectedStoryMode ? "user_selected" as const : undefined;
-
   const summaries = useMemo(() => ({
-    idea: summarizeIdea(controller.idea, {
-      genre: selectedGenre?.path,
-      storyMode: selectedStoryMode?.path,
-    }),
+    idea: summarizeIdea(controller.idea),
     basic: summarizeBasicStage(controller.directorBasicForm),
     world_style: summarizeWorldStyleStage({
       basicForm: controller.directorBasicForm,
@@ -183,8 +160,8 @@ export default function AutoDirectorCreatePage() {
     candidates: controller.batches.length > 0
       ? `已生成 ${controller.batches.length} 批方向候选`
       : controller.hasActiveDirectorTask
-        ? "导演任务进行中"
-        : "等待生成方向候选",
+        ? i18next.t("dict.gen_d3ec695c")
+        : i18next.t("dict.gen_7c5ab588"),
   }), [
     controller.batches.length,
     controller.directorBasicForm,
@@ -196,8 +173,6 @@ export default function AutoDirectorCreatePage() {
     controller.selectedStyleSummary,
     controller.styleProfiles,
     controller.worldSetupMode,
-    selectedGenre?.path,
-    selectedStoryMode?.path,
     worldOptions,
   ]);
 
@@ -230,26 +205,6 @@ export default function AutoDirectorCreatePage() {
           onQuickGenerate={startGenerate}
           canContinue={controller.idea.trim().length > 0}
           isGenerating={controller.generateMutation.isPending}
-          genreTree={genreTree}
-          storyModeTree={storyModeTree}
-          selectedGenreId={controller.directorBasicForm.genreId}
-          selectedGenreLabel={selectedGenre
-            ? `故事类型：${selectedGenre.path}`
-            : controller.directorBasicForm.genreId ? "故事类型：选择已失效" : ""}
-          selectedGenreSource={selectedGenreSource}
-          selectedStoryModeId={controller.directorBasicForm.primaryStoryModeId}
-          selectedStoryModeLabel={selectedStoryMode
-            ? `推进方式：${selectedStoryMode.path}`
-            : controller.directorBasicForm.primaryStoryModeId ? "推进方式：选择已失效" : ""}
-          selectedStoryModeSource={selectedStoryModeSource}
-          genreLoading={genreTreeQuery.isPending}
-          genreError={genreTreeQuery.isError}
-          storyModeLoading={storyModeTreeQuery.isPending}
-          storyModeError={storyModeTreeQuery.isError}
-          isUpdatingFoundation={controller.isUpdatingFoundation}
-          onRetryGenres={() => void genreTreeQuery.refetch()}
-          onRetryStoryModes={() => void storyModeTreeQuery.refetch()}
-          onFoundationChange={controller.updateProductionFoundation}
         />
       );
     }
@@ -315,13 +270,11 @@ export default function AutoDirectorCreatePage() {
       {showSummaryBar ? (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <div className="text-2xl font-semibold tracking-normal text-foreground">AI 自动导演创建</div>
-            <div className="mt-1 text-sm leading-6 text-muted-foreground">
-              从一个起始想法开始，AI 完成整本规划准备后，再由你选择正文生产方式。
-            </div>
+            <div className="text-2xl font-semibold tracking-normal text-foreground">{i18next.t("dict.aiAutoDirectorCreate")}</div>
+            <div className="mt-1 text-sm leading-6 text-muted-foreground">{i18next.t("novels.autoDirectorCreatePage.8g8kb2")}</div>
           </div>
           <Button type="button" variant="outline" asChild>
-            <Link to="/novels/create">手动创建</Link>
+            <Link to="/novels/create">{i18next.t("dict.gen_4364e2f1")}</Link>
           </Button>
         </div>
       ) : null}
@@ -350,9 +303,7 @@ export default function AutoDirectorCreatePage() {
       ) : null}
 
       {restoreWorkflowMutation.isPending && normalizedTaskId ? (
-        <div className="rounded-lg bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-          正在恢复自动导演现场。
-        </div>
+        <div className="rounded-lg bg-muted/20 px-4 py-3 text-sm text-muted-foreground">{i18next.t("novels.autoDirectorCreatePage.2u9n1q")}</div>
       ) : null}
 
       <AnimatePresence mode="wait">

@@ -1,10 +1,10 @@
+import i18next from "i18next";
 import { useMemo, useState } from "react";
 import type { WorldVisualizationPayload } from "@ai-novel/shared/types/world";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import SelectControl from "@/components/common/SelectControl";
 import WorldGraphCanvas from "./visualization/WorldGraphCanvas";
-import WorldTimelinePanel from "./visualization/WorldTimelinePanel";
 
 interface WorldVisualizationBoardProps {
   payload?: WorldVisualizationPayload;
@@ -91,14 +91,14 @@ export default function WorldVisualizationBoard({ payload }: WorldVisualizationB
   }, [keyword, payload?.timeline, timelineLimit]);
 
   return (
-    <section className="space-y-4 border-t border-border/30 pt-6" aria-label="世界图谱">
+    <section className="space-y-4 border-t border-border/30 pt-6" aria-label={i18next.t("worlds.worldVisualizationBoard.ac66ax")}>
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex gap-1 overflow-x-auto rounded-full bg-muted/30 p-1">
           {[
-            { value: "faction", label: "势力图谱" },
-            { value: "geography", label: "地理地图" },
-            { value: "power", label: "力量体系" },
-            { value: "timeline", label: "世界时间线" },
+            { value: "faction", label: i18next.t("dict.gen_de942453") },
+            { value: "geography", label: i18next.t("worlds.worldVisualizationBoard.bhayp0") },
+            { value: "power", label: i18next.t("dict.gen_9185e0fc") },
+            { value: "timeline", label: i18next.t("dict.worldTimeline") },
           ].map((item) => (
             <Button
               key={item.value}
@@ -118,7 +118,7 @@ export default function WorldVisualizationBoard({ payload }: WorldVisualizationB
             className="w-full rounded-full sm:w-72"
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
-            placeholder="筛选名称或关键词"
+            placeholder={i18next.t("worlds.worldVisualizationBoard.eas7xv")}
           />
           {mode === "faction" ? (
             <SelectControl
@@ -133,7 +133,7 @@ export default function WorldVisualizationBoard({ payload }: WorldVisualizationB
           ) : null}
           {mode === "timeline" ? (
             <label className="flex items-center gap-2 rounded-full bg-muted/30 px-4 text-xs text-muted-foreground">
-              <span>显示</span>
+              <span>{i18next.t("worlds.worldVisualizationBoard.i20s")}</span>
               <input type="range" min={3} max={20} step={1} value={timelineLimit} onChange={(event) => setTimelineLimit(Number(event.target.value))} />
               <span className="tabular-nums">{timelineLimit}</span>
             </label>
@@ -179,13 +179,24 @@ export default function WorldVisualizationBoard({ payload }: WorldVisualizationB
                 <div className="mt-1 text-sm leading-6">{item.description}</div>
               </div>
             ))}
-            {filteredPower.length === 0 ? <div className="text-sm text-muted-foreground">暂无匹配内容</div> : null}
+            {filteredPower.length === 0 ? <div className="text-sm text-muted-foreground">{i18next.t("worlds.worldVisualizationBoard.m9l4re")}</div> : null}
           </div>
         </div>
       ) : null}
 
       {mode === "timeline" ? (
-        <WorldTimelinePanel items={filteredTimeline} />
+        <div className="rounded-3xl border border-border/35 bg-card/70 p-5">
+          <div className="mb-3 font-medium">世界时间线 · {filteredTimeline.length} 条</div>
+          <div className="space-y-2">
+            {filteredTimeline.map((item, index) => (
+              <div key={`${item.year}-${item.event}-${index}`} className="flex gap-4 rounded-2xl bg-muted/20 p-4">
+                <div className="w-24 shrink-0 text-xs font-semibold text-primary">{item.year}</div>
+                <div className="text-sm leading-6">{item.event}</div>
+              </div>
+            ))}
+            {filteredTimeline.length === 0 ? <div className="text-sm text-muted-foreground">{i18next.t("worlds.worldVisualizationBoard.m9l4re")}</div> : null}
+          </div>
+        </div>
       ) : null}
     </section>
   );

@@ -1,20 +1,29 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import { useEffect, useMemo, useState } from "react";
 import type { Chapter, ChapterStatus } from "@ai-novel/shared/types/novel";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, BookOpen, Check, Copy, Edit3, List, Settings2, X } from "lucide-react";
+import { ArrowLeft, BookOpen, Check, Copy, Edit3, FileText, ListTree } from "lucide-react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { getNovelChapters, getNovelDetail } from "@/api/novel";
 import { queryKeys } from "@/api/queryKeys";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 function countWords(content: string | null | undefined): number {
   const text = content?.trim() ?? "";
-  if (!text) return 0;
-  const cjk = text.match(/[\u3400-\u9fff]/g)?.length ?? 0;
-  const words = text.replace(/[\u3400-\u9fff]/g, " ").match(/[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*/g)?.length ?? 0;
-  return cjk + words;
+  if (!text) {
+    return 0;
+  }
+
+  const cjkMatches = text.match(/[\u3400-\u9fff]/g)?.length ?? 0;
+  const wordMatches = text
+    .replace(/[\u3400-\u9fff]/g, " ")
+    .match(/[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*/g)?.length ?? 0;
+  return cjkMatches + wordMatches;
 }
 
 function formatCount(value: number): string {
@@ -23,42 +32,59 @@ function formatCount(value: number): string {
 
 function formatChapterStatus(status?: ChapterStatus | null): string {
   switch (status) {
-    case "completed": return "正文完成";
-    case "pending_review": return "待审校";
-    case "needs_repair": return "待修复";
-    case "generating": return "生成中";
-    case "pending_generation": return "待生成";
-    case "unplanned": return "未规划";
-    default: return "未标记";
+    case "completed":
+      return i18next.t("dict.gen_84af95a7");
+    case "pending_review":
+      return i18next.t("dict.gen_420b5a47");
+    case "needs_repair":
+      return i18next.t("dict.gen_a7a05e79");
+    case "generating":
+      return i18next.t("dict.gen_1ae3a984");
+    case "pending_generation":
+      return i18next.t("dict.gen_418dde27");
+    case "unplanned":
+      return i18next.t("dict.gen_16fe50f9");
+    default:
+      return i18next.t("dict.gen_120e6f23");
   }
 }
 
-function chapterText(content: string | null | undefined): string {
+function normalizeChapterText(content: string | null | undefined): string {
   return content?.trim() ?? "";
 }
 
-async function copyText(text: string): Promise<void> {
+async function writeTextToClipboard(text: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(text);
     return;
   } catch {
-    const area = document.createElement("textarea");
-    area.value = text;
-    area.setAttribute("readonly", "true");
-    area.style.position = "fixed";
-    area.style.left = "-9999px";
-    document.body.appendChild(area);
-    area.select();
-    document.execCommand("copy");
-    document.body.removeChild(area);
+    // Some desktop webviews and local browser contexts deny Clipboard API writes.
+  }
+
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  textArea.setAttribute("readonly", "true");
+  textArea.style.position = "fixed";
+  textArea.style.top = "0";
+  textArea.style.left = "-9999px";
+  document.body.appendChild(textArea);
+  textArea.select();
+
+  try {
+    const copied = document.execCommand("copy");
+    if (!copied) {
+      throw new Error("copy command rejected");
+    }
+  } finally {
+    document.body.removeChild(textArea);
   }
 }
 
 export default function NovelPreview() {
+  const { t } = useTranslation();
   const { id = "" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [showChapters, setShowChapters] = useState(true);
-  const [copied, setCopied] = useState(false);
+  const [copiedChapterId, setCopiedChapterId] = useState<string | null>(null);
   const selectedChapterId = searchParams.get("chapterId") ?? "";
 
   const novelQuery = useQuery({
@@ -66,6 +92,7 @@ export default function NovelPreview() {
     queryFn: () => getNovelDetail(id),
     enabled: Boolean(id),
   });
+
   const chaptersQuery = useQuery({
     queryKey: queryKeys.novels.chapters(id),
     queryFn: () => getNovelChapters(id),
@@ -77,145 +104,276 @@ export default function NovelPreview() {
     () => [...(chaptersQuery.data?.data ?? [])].sort((a, b) => a.order - b.order),
     [chaptersQuery.data?.data],
   );
-  const generatedChapters = useMemo(() => chapters.filter((chapter) => chapterText(chapter.content)), [chapters]);
-  const activeChapter = useMemo(
-    () => chapters.find((chapter) => chapter.id === selectedChapterId) ?? generatedChapters[0] ?? chapters[0] ?? null,
-    [chapters, generatedChapters, selectedChapterId],
+  const generatedChapters = useMemo(
+    () => chapters.filter((chapter) => normalizeChapterText(chapter.content).length > 0),
+    [chapters],
   );
-  const activeContent = chapterText(activeChapter?.content);
-  const totalWordCount = useMemo(() => chapters.reduce((sum, chapter) => sum + countWords(chapter.content), 0), [chapters]);
+  const activeChapter = useMemo(() => {
+    return chapters.find((chapter) => chapter.id === selectedChapterId)
+      ?? generatedChapters[0]
+      ?? chapters[0]
+      ?? null;
+  }, [chapters, generatedChapters, selectedChapterId]);
+  const activeContent = normalizeChapterText(activeChapter?.content);
+  const totalWordCount = useMemo(
+    () => chapters.reduce((sum, chapter) => sum + countWords(chapter.content), 0),
+    [chapters],
+  );
 
   useEffect(() => {
-    if (!activeChapter || selectedChapterId === activeChapter.id) return;
-    setSearchParams((previous) => {
-      const next = new URLSearchParams(previous);
+    if (!activeChapter || selectedChapterId === activeChapter.id) {
+      return;
+    }
+
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
       next.set("chapterId", activeChapter.id);
       return next;
     }, { replace: true });
   }, [activeChapter, selectedChapterId, setSearchParams]);
 
   const selectChapter = (chapter: Chapter) => {
-    setSearchParams((previous) => {
-      const next = new URLSearchParams(previous);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
       next.set("chapterId", chapter.id);
       return next;
     });
-    if (!window.matchMedia("(min-width: 1024px)").matches) {
-      setShowChapters(false);
-    }
   };
 
-  const handleCopy = async () => {
-    if (!activeContent) return toast.error("当前章节还没有正文。");
+  const copyActiveChapter = async () => {
+    if (!activeChapter || !activeContent) {
+      toast.error(i18next.t("dict.gen_307412f2"));
+      return;
+    }
+
     try {
-      await copyText(activeContent);
-      setCopied(true);
-      toast.success("正文已复制。");
-      window.setTimeout(() => setCopied(false), 1600);
+      await writeTextToClipboard(activeContent);
+      setCopiedChapterId(activeChapter.id);
+      toast.success(i18next.t("dict.gen_d6f3284a"));
+      window.setTimeout(() => {
+        setCopiedChapterId((current) => (current === activeChapter.id ? null : current));
+      }, 1600);
     } catch {
-      toast.error("复制失败，请手动选择正文复制。");
+      toast.error(i18next.t("dict.gen_44bcfdfc"));
     }
   };
 
   if (!id) {
-    return <div className="flex min-h-full items-center justify-center"><Button asChild><Link to="/novels">返回小说列表</Link></Button></div>;
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>{i18next.t("dict.gen_2813d1e2")}</CardTitle>
+          <CardDescription>{i18next.t("dict.gen_137f80e7")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild>
+            <Link to="/novels">{i18next.t("dict.gen_9c469174")}</Link>
+          </Button>
+        </CardContent>
+      </Card>
+    );
   }
 
   const isLoading = novelQuery.isPending || chaptersQuery.isPending;
   const isError = novelQuery.isError || chaptersQuery.isError;
 
-  if (isLoading) {
-    return <div className="flex min-h-full items-center justify-center text-sm text-muted-foreground">正在打开作品...</div>;
-  }
-  if (isError) {
-    return (
-      <div className="flex min-h-full flex-col items-center justify-center gap-4 text-center">
-        <p className="text-sm text-muted-foreground">当前无法打开这本作品。</p>
-        <Button onClick={() => { void novelQuery.refetch(); void chaptersQuery.refetch(); }}>重新加载</Button>
-      </div>
-    );
-  }
-  if (chapters.length === 0) {
-    return (
-      <div className="flex min-h-full flex-col items-center justify-center gap-4 text-center">
-        <BookOpen className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
-        <p className="text-sm text-muted-foreground">这本作品还没有可阅读的章节。</p>
-        <Button asChild><Link to={`/novels/${id}/edit`}>进入工作区</Link></Button>
-      </div>
-    );
-  }
-
   return (
-    <div className="relative h-full overflow-y-auto bg-[#faf9f6] text-slate-900">
-      <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-[#faf9f6]/90 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-4 px-5 lg:pl-72">
-          <Button asChild variant="ghost" size="sm" className="-ml-2 text-slate-500 hover:text-slate-900">
-            <Link to="/novels" aria-label="返回书架"><ArrowLeft className="h-4 w-4" /></Link>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 space-y-2">
+          <Button asChild variant="ghost" size="sm" className="px-0 text-muted-foreground">
+            <Link to="/novels">
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />{i18next.t("dict.gen_9c469174")}</Link>
           </Button>
-          <div className="min-w-0 flex-1 text-center">
-            <div className="truncate text-sm font-medium">{novel?.title ?? "小说预览"}</div>
-            <div className="mt-0.5 text-xs text-slate-400">{activeChapter ? `第 ${activeChapter.order} 章` : "阅读"}</div>
-          </div>
-          <div className="flex items-center gap-1">
-            <Button type="button" variant={showChapters ? "secondary" : "ghost"} size="sm" className="text-slate-500 hover:text-slate-900" onClick={() => setShowChapters((value) => !value)} title="打开目录" aria-label="打开目录">
-              <List className="h-4 w-4" />
-            </Button>
-            <Button asChild variant="ghost" size="sm" className="text-slate-500 hover:text-slate-900" title="打开工作区" aria-label="打开工作区">
-              <Link to={`/novels/${id}/edit`}><Settings2 className="h-4 w-4" /></Link>
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="px-6 pb-24 pt-16 sm:px-10 sm:pt-20 lg:pl-[22.5rem]">
-        <div className="mx-auto max-w-3xl">
-          <div className="mb-12 text-center">
-          <div className="text-xs tracking-[0.22em] text-slate-400">{novel?.status === "published" ? "PUBLISHED" : "DRAFT"}</div>
-          <h1 className="mt-4 text-3xl font-semibold tracking-normal text-slate-900 sm:text-4xl">{novel?.title ?? "小说预览"}</h1>
-          <p className="mt-3 text-sm text-slate-500">{formatCount(totalWordCount)} 字 · {generatedChapters.length}/{chapters.length} 章已生成</p>
-          </div>
-
-          <article className="whitespace-pre-wrap text-[17px] leading-[2.15] text-slate-800 sm:text-[18px]">
-            {activeContent || "本章还没有正文。"}
-          </article>
-
-          <footer className="mt-20 flex items-center justify-center gap-2 border-t border-slate-200/70 pt-6">
-            <Button type="button" variant="ghost" size="sm" className="text-slate-500" onClick={() => void handleCopy()} disabled={!activeContent}>
-              {copied ? <Check className="mr-1.5 h-4 w-4" /> : <Copy className="mr-1.5 h-4 w-4" />}
-              {copied ? "已复制" : "复制本章"}
-            </Button>
-            {activeChapter ? (
-              <Button asChild variant="ghost" size="sm" className="text-slate-500">
-                <Link to={`/novels/${id}/chapters/${activeChapter.id}`}><Edit3 className="mr-1.5 h-4 w-4" />编辑本章</Link>
-              </Button>
-            ) : null}
-          </footer>
-        </div>
-      </main>
-
-      {showChapters ? (
-        <>
-          <button type="button" aria-label="关闭目录" className="fixed inset-0 z-30 bg-slate-900/20 lg:hidden" onClick={() => setShowChapters(false)} />
-          <aside className="fixed inset-y-0 left-0 z-40 flex w-[min(360px,88vw)] flex-col border-r border-slate-200 bg-[#faf9f6] shadow-xl lg:shadow-none">
-            <div className="flex items-center justify-between border-b border-slate-200/70 px-5 py-4">
-              <div><div className="font-medium">目录</div><div className="mt-1 text-xs text-slate-400">{generatedChapters.length}/{chapters.length} 章 · {formatCount(totalWordCount)} 字</div></div>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setShowChapters(false)} title="关闭目录" aria-label="关闭目录"><X className="h-4 w-4" /></Button>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="break-words text-2xl font-semibold tracking-tight">
+                {novel?.title ?? i18next.t("dict.gen_38cb41c9")}
+              </h1>
+              {novel?.status ? (
+                <Badge variant={novel.status === "published" ? "default" : "secondary"}>
+                  {novel.status === "published" ? i18next.t("common.published") : i18next.t("common.draft")}
+                </Badge>
+              ) : null}
             </div>
-            <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{i18next.t("novels.novelPreview.bwt039")}</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link to={`/novels/${id}/edit`}>
+              <Edit3 className="h-4 w-4" aria-hidden="true" />{i18next.t("novels.novelPreview.td5162")}</Link>
+          </Button>
+          {activeChapter ? (
+            <Button asChild>
+              <Link to={`/novels/${id}/chapters/${activeChapter.id}`}>
+                <FileText className="h-4 w-4" aria-hidden="true" />{i18next.t("dict.gen_21a7b9c5")}</Link>
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="grid min-h-[70vh] gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+          <Card className="animate-pulse">
+            <CardHeader>
+              <div className="h-5 w-28 rounded bg-muted" />
+              <div className="h-4 w-40 rounded bg-muted" />
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div key={index} className="h-16 rounded-lg bg-muted" />
+              ))}
+            </CardContent>
+          </Card>
+          <Card className="animate-pulse">
+            <CardHeader>
+              <div className="h-7 w-1/2 rounded bg-muted" />
+              <div className="h-4 w-48 rounded bg-muted" />
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {Array.from({ length: 10 }).map((_, index) => (
+                <div key={index} className="h-4 rounded bg-muted" />
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      ) : isError ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{i18next.t("dict.gen_57d68ea3")}</CardTitle>
+            <CardDescription>{i18next.t("dict.gen_900b1e74")}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => {
+              void novelQuery.refetch();
+              void chaptersQuery.refetch();
+            }}
+            >{i18next.t("common.retry")}</Button>
+          </CardContent>
+        </Card>
+      ) : chapters.length === 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{i18next.t("dict.gen_6c29ec53")}</CardTitle>
+            <CardDescription>{i18next.t("dict.gen_25b00d48")}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild>
+              <Link to={`/novels/${id}/edit`}>{i18next.t("dict.gen_781a989a")}</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid min-h-[70vh] gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+          <Card className="min-h-0 lg:h-[calc(100vh-13rem)]">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ListTree className="h-4 w-4" aria-hidden="true" />{i18next.t("novels.novelPreview.g1mceh")}</CardTitle>
+              <CardDescription>
+                已生成正文 {generatedChapters.length}/{chapters.length} 章，约 {formatCount(totalWordCount)} 字。
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="min-h-0 space-y-2 overflow-y-auto pr-2 lg:max-h-[calc(100vh-20rem)]">
               {chapters.map((chapter) => {
-                const hasContent = Boolean(chapterText(chapter.content));
+                const chapterContent = normalizeChapterText(chapter.content);
+                const isActive = activeChapter?.id === chapter.id;
                 return (
-                  <button key={chapter.id} type="button" className={cn("w-full rounded-md px-3 py-3 text-left transition hover:bg-slate-200/60", activeChapter?.id === chapter.id && "bg-slate-200/70")} onClick={() => selectChapter(chapter)}>
-                    <div className="flex items-center justify-between gap-3"><span className="text-sm font-medium">第 {chapter.order} 章</span><span className="text-xs text-slate-400">{formatCount(countWords(chapter.content))} 字</span></div>
-                    <div className="mt-1 truncate text-sm text-slate-500">{chapter.title || "未命名章节"}</div>
-                    <div className="mt-1 text-xs text-slate-400">{hasContent ? formatChapterStatus(chapter.chapterStatus) : "暂无正文"}</div>
+                  <button
+                    key={chapter.id}
+                    type="button"
+                    className={cn(
+                      "w-full rounded-lg border p-3 text-left text-sm transition hover:border-primary/40 hover:bg-muted/40 focus:outline-none focus:ring-2 focus:ring-ring",
+                      isActive ? "border-primary bg-primary/[0.06]" : "border-border bg-background",
+                    )}
+                    onClick={() => selectChapter(chapter)}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-medium text-foreground">
+                          第 {chapter.order} 章
+                        </div>
+                        <div className="mt-1 line-clamp-2 break-words text-muted-foreground">
+                          {chapter.title || i18next.t("dict.gen_db55d102")}
+                        </div>
+                      </div>
+                      <Badge variant={chapterContent ? "outline" : "secondary"}>
+                        {chapterContent ? i18next.t("dict.gen_9c39cadc") : i18next.t("dict.gen_6de9bb70")}
+                      </Badge>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      <span>{formatChapterStatus(chapter.chapterStatus)}</span>
+                      <span>{i18next.t("dict.chapterWordCount")}</span>
+                    </div>
                   </button>
                 );
               })}
-            </nav>
-          </aside>
-        </>
-      ) : null}
+            </CardContent>
+          </Card>
+
+          <Card className="min-h-0 lg:h-[calc(100vh-13rem)]">
+            <CardHeader className="border-b">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <CardTitle className="flex items-center gap-2 text-xl">
+                    <BookOpen className="h-5 w-5 shrink-0" aria-hidden="true" />
+                    <span className="break-words">
+                      {activeChapter ? `第 ${activeChapter.order} 章：${activeChapter.title || i18next.t("dict.gen_db55d102")}` : i18next.t("dict.gen_0ca66ea7")}
+                    </span>
+                  </CardTitle>
+                  {activeChapter ? (
+                    <CardDescription className="mt-2">
+                      {formatChapterStatus(activeChapter.chapterStatus)} · {formatCount(countWords(activeChapter.content))} 字
+                    </CardDescription>
+                  ) : null}
+                </div>
+                {activeChapter ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void copyActiveChapter()}
+                      disabled={!activeContent}
+                    >
+                      {copiedChapterId === activeChapter.id ? (
+                        <Check className="h-4 w-4" aria-hidden="true" />
+                      ) : (
+                        <Copy className="h-4 w-4" aria-hidden="true" />
+                      )}
+                      {copiedChapterId === activeChapter.id ? i18next.t("dict.gen_52e6abbe") : i18next.t("dict.gen_26c0d431")}
+                    </Button>
+                    <Button asChild variant="outline" size="sm">
+                      <Link to={`/novels/${id}/chapters/${activeChapter.id}`}>
+                        <Edit3 className="h-4 w-4" aria-hidden="true" />{i18next.t("dict.gen_21a7b9c5")}</Link>
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            </CardHeader>
+            <CardContent className="min-h-0 overflow-y-auto p-0 lg:max-h-[calc(100vh-21rem)]">
+              {activeContent ? (
+                <article className="mx-auto max-w-3xl whitespace-pre-wrap px-5 py-6 text-base leading-8 text-slate-900 md:px-8">
+                  {activeContent}
+                </article>
+              ) : (
+                <div className="flex min-h-[420px] items-center justify-center px-6 text-center">
+                  <div className="max-w-md space-y-3">
+                    <FileText className="mx-auto h-10 w-10 text-muted-foreground" aria-hidden="true" />
+                    <div className="text-lg font-medium">{i18next.t("dict.gen_8722b85f")}</div>
+                    <p className="text-sm leading-6 text-muted-foreground">{i18next.t("novels.novelPreview.97z2eo")}</p>
+                    {activeChapter ? (
+                      <Button asChild>
+                        <Link to={`/novels/${id}/chapters/${activeChapter.id}`}>{i18next.t("dict.gen_21a7b9c5")}</Link>
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

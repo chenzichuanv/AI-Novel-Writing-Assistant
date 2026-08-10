@@ -38,7 +38,6 @@ import {
 import { prepareRequestedAutoExecution as prepareRequestedAutoExecutionState, resolveAutoExecutionRuntimeRangeAndState, shouldStopAutoExecution } from "./novelDirectorAutoExecutionRuntimePreparation";
 import type { NovelDirectorAutoExecutionRuntimeDeps, PipelineJobSnapshot } from "./novelDirectorAutoExecutionRuntimePorts";
 import { directorAutomationLedgerEventService } from "../runtime/DirectorAutomationLedgerEventService";
-import { prisma } from "../../../../db/prisma";
 import {
   buildDirectorQualityLoopBudgetWindow,
   buildDirectorQualityLoopIssueSignature,
@@ -383,16 +382,6 @@ export class NovelDirectorAutoExecutionRuntime {
         if (job.status === "succeeded") {
           const completedPipelineJobId = pipelineJobId;
           pipelineJobId = "";
-          const handoffTask = await prisma.novelWorkflowTask.findUnique({
-            where: { id: input.taskId },
-            select: { currentItemKey: true, checkpointType: true },
-          }).catch(() => null);
-          if (
-            handoffTask?.currentItemKey === "professional_production_handoff"
-            && handoffTask.checkpointType === "workflow_completed"
-          ) {
-            return;
-          }
           if ((autoExecution.remainingChapterCount ?? 0) > 0) {
             if (this.deps.autoConfirmPendingCandidates) {
               await this.deps.autoConfirmPendingCandidates(input.novelId).catch(() => null);

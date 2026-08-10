@@ -1,6 +1,7 @@
+import i18next from "i18next";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { ChevronDown, ChevronRight, Eraser, GripHorizontal, Maximize2, Minimize2, Radio, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Eraser, GripHorizontal, Radio, X } from "lucide-react";
 import type { LlmLiveSessionSnapshot } from "@ai-novel/shared/types/llmLive";
 import { useLlmLiveFeed } from "@/hooks/useLlmLiveFeed";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +41,6 @@ interface LiveExecutionDialogProps {
 
 export default function LiveExecutionDialog(props: LiveExecutionDialogProps) {
   const [open, setOpen] = useState(false);
-  const [briefMode, setBriefMode] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [followingLatest, setFollowingLatest] = useState(true);
   const [collapsedSessionIds, setCollapsedSessionIds] = useState<Set<string>>(() => new Set());
@@ -55,14 +55,16 @@ export default function LiveExecutionDialog(props: LiveExecutionDialogProps) {
     taskId: props.taskId,
   });
   const orderedSessions = useMemo(
-    () => [...sessions],
+    () =>
+      [...sessions].sort(
+        (a, b) =>
+          new Date(b.startedAt || b.updatedAt).getTime() -
+          new Date(a.startedAt || a.updatedAt).getTime()
+      ),
     [sessions],
   );
-  const latestSession = orderedSessions[orderedSessions.length - 1] ?? null;
+  const latestSession = orderedSessions[0] ?? null;
   const latestSessionId = latestSession ? sessionId(latestSession) : null;
-  const latestPreview = latestSession?.preview
-    ? latestSession.preview.slice(-1200)
-    : "等待模型开始返回内容…";
   const activeCount = sessions.filter((session) => isActive(session.phase)).length;
 
   useEffect(() => {
@@ -92,7 +94,7 @@ export default function LiveExecutionDialog(props: LiveExecutionDialogProps) {
     }
     const frame = window.requestAnimationFrame(() => {
       if (latestSessionRef.current && followLatestRef.current) {
-        latestSessionRef.current.scrollIntoView({ block: "end" });
+        latestSessionRef.current.scrollIntoView({ block: "start" });
       }
     });
     return () => window.cancelAnimationFrame(frame);
@@ -122,7 +124,7 @@ export default function LiveExecutionDialog(props: LiveExecutionDialogProps) {
     followLatestRef.current = true;
     setFollowingLatest(true);
     if (logRef.current) {
-      latestSessionRef.current?.scrollIntoView({ block: "end" });
+      latestSessionRef.current?.scrollIntoView({ block: "start" });
     }
   };
 
@@ -154,12 +156,6 @@ export default function LiveExecutionDialog(props: LiveExecutionDialogProps) {
     setOpen(nextOpen);
   };
 
-  const toggleDisplayMode = () => {
-    setBriefMode((current) => !current);
-    followLatestRef.current = true;
-    setFollowingLatest(true);
-  };
-
   return (
     <>
       <Button
@@ -168,7 +164,7 @@ export default function LiveExecutionDialog(props: LiveExecutionDialogProps) {
         variant="outline"
         className={cn("relative", props.className)}
         onClick={() => handleOpenChange(true)}
-        title="查看 AI 创作实况"
+        title={i18next.t("liveExecution.liveExecutionDialog.m9968m")}
       >
         <Radio className={activeCount > 0 ? "mr-1.5 h-3.5 w-3.5 animate-pulse text-primary" : "mr-1.5 h-3.5 w-3.5"} aria-hidden="true" />
         {!props.compact ? <span className="hidden sm:inline">AI 实况</span> : null}
@@ -182,20 +178,12 @@ export default function LiveExecutionDialog(props: LiveExecutionDialogProps) {
       <DialogPrimitive.Root modal={false} open={open} onOpenChange={handleOpenChange}>
         <DialogPrimitive.Portal>
           <DialogPrimitive.Content
-            className={cn(
-              "fixed right-4 top-20 z-[70] flex w-[min(42rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-xl border border-emerald-400/45 bg-[#080d0c] text-emerald-50 shadow-2xl shadow-emerald-950/40 outline-none transition-[height] duration-200 ease-out",
-              briefMode
-                ? "h-[13rem] max-h-[calc(100dvh-6rem)]"
-                : "h-[min(42rem,calc(100dvh-6rem))]",
-            )}
+            className="fixed right-4 top-20 z-[70] flex max-h-[min(42rem,calc(100dvh-6rem))] w-[min(42rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-xl border border-emerald-400/45 bg-[#080d0c] text-emerald-50 shadow-2xl shadow-emerald-950/40 outline-none"
             style={{ transform: `translate(${dragOffset.x}px, ${dragOffset.y}px)` }}
             aria-describedby="live-execution-description"
           >
             <header
-              className={cn(
-                "flex shrink-0 touch-none items-start gap-3 border-b border-emerald-400/25 bg-[#0d1714] px-3 select-none",
-                briefMode ? "py-2.5" : "py-3",
-              )}
+              className="flex shrink-0 touch-none items-start gap-3 border-b border-emerald-400/25 bg-[#0d1714] px-3 py-3 select-none"
               onPointerDown={(event) => {
                 if (event.button !== 0) return;
                 dragStartRef.current = {
@@ -224,32 +212,11 @@ export default function LiveExecutionDialog(props: LiveExecutionDialogProps) {
               <GripHorizontal className="mt-1 h-4 w-4 shrink-0 text-emerald-400/80" aria-hidden="true" />
               <div className="min-w-0 flex-1">
                 <DialogPrimitive.Title className="font-mono text-sm font-semibold tracking-wide text-emerald-100">AI 创作实况 / LIVE LOG</DialogPrimitive.Title>
-                <DialogPrimitive.Description
-                  id="live-execution-description"
-                  className={cn("mt-1 text-xs leading-5 text-emerald-100/65", briefMode && "sr-only")}
-                >
-                  每次调用独立显示。新调用会自动聚焦，已完成调用会收起；清空只影响当前窗口。
-                </DialogPrimitive.Description>
+                <DialogPrimitive.Description id="live-execution-description" className="mt-1 text-xs leading-5 text-emerald-100/65">{i18next.t("liveExecution.liveExecutionDialog.i2ai6f")}</DialogPrimitive.Description>
               </div>
               <Badge variant="outline" className="shrink-0 border-emerald-400/50 bg-emerald-400/10 font-mono text-emerald-200">
                 {activeCount > 0 ? `${activeCount} 项进行中` : connected ? "等待生成" : "正在连接"}
               </Badge>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-8 shrink-0 gap-1.5 px-2 font-mono text-xs text-emerald-200 hover:bg-emerald-400/10 hover:text-emerald-50"
-                onClick={toggleDisplayMode}
-                onPointerDown={(event) => event.stopPropagation()}
-                onPointerMove={(event) => event.stopPropagation()}
-                onPointerUp={(event) => event.stopPropagation()}
-                aria-label={briefMode ? "切换到详细模式" : "切换到简略模式"}
-                title={briefMode ? "查看全部调用" : "只看最新输出"}
-              >
-                {briefMode ? <Maximize2 className="h-3.5 w-3.5" /> : <Minimize2 className="h-3.5 w-3.5" />}
-                {briefMode ? "详细" : "简略"}
-              </Button>
-              {!briefMode ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -260,17 +227,14 @@ export default function LiveExecutionDialog(props: LiveExecutionDialogProps) {
                 onPointerMove={(event) => event.stopPropagation()}
                 onPointerUp={(event) => event.stopPropagation()}
               >
-                <Eraser className="h-3.5 w-3.5" />
-                清空前台
-              </Button>
-              ) : null}
+                <Eraser className="h-3.5 w-3.5" />{i18next.t("liveExecution.liveExecutionDialog.edwbh4")}</Button>
               <DialogPrimitive.Close asChild>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
                   className="-mr-1 -mt-1 h-8 w-8 shrink-0 text-emerald-100 hover:bg-emerald-400/10 hover:text-emerald-50"
-                  aria-label="关闭 AI 创作实况"
+                  aria-label={i18next.t("liveExecution.liveExecutionDialog.97qyga")}
                   onPointerDown={(event) => event.stopPropagation()}
                   onPointerMove={(event) => event.stopPropagation()}
                   onPointerUp={(event) => event.stopPropagation()}
@@ -282,10 +246,7 @@ export default function LiveExecutionDialog(props: LiveExecutionDialogProps) {
 
             <div
               ref={logRef}
-              className={cn(
-                "live-execution-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.09),transparent_42%),linear-gradient(to_bottom,#080d0c,#050807)] font-mono text-xs leading-6 text-emerald-100",
-                briefMode ? "px-3 py-2.5" : "px-4 py-3",
-              )}
+              className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.09),transparent_42%),linear-gradient(to_bottom,#080d0c,#050807)] px-4 py-3 font-mono text-xs leading-6 text-emerald-100"
               onScroll={(event) => {
                 const element = event.currentTarget;
                 const shouldFollow = element.scrollHeight - element.scrollTop - element.clientHeight < 32;
@@ -293,17 +254,7 @@ export default function LiveExecutionDialog(props: LiveExecutionDialogProps) {
                 setFollowingLatest(shouldFollow);
               }}
             >
-              {briefMode && latestSession ? (
-                <section ref={latestSessionRef} className="min-h-full">
-                  <div className="mb-1.5 flex items-center gap-2 text-[11px]">
-                    <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", isActive(latestSession.phase) ? "animate-pulse bg-emerald-300" : "bg-emerald-500/60")} />
-                    <span className="min-w-0 flex-1 truncate font-semibold text-emerald-50">{latestSession.context.label}</span>
-                    <span className="shrink-0 text-emerald-100/55">{phaseLabel(latestSession.phase)}</span>
-                  </div>
-                  <div className="mb-1 truncate text-[11px] text-emerald-100/45">{latestSession.phaseMessage}</div>
-                  <pre className="m-0 whitespace-pre-wrap break-words text-emerald-100/90">{latestPreview}</pre>
-                </section>
-              ) : orderedSessions.length > 0 ? (
+              {orderedSessions.length > 0 ? (
                 <div className="space-y-2">
                   {orderedSessions.map((session) => {
                     const interactionId = sessionId(session);
@@ -332,9 +283,35 @@ export default function LiveExecutionDialog(props: LiveExecutionDialogProps) {
                           </span>
                         </button>
                         {!collapsed ? (
-                          <div className="border-t border-emerald-400/15 px-3 py-2">
-                            <div className="mb-2 text-[11px] text-emerald-100/60">{session.phaseMessage}</div>
-                            <pre className="m-0 whitespace-pre-wrap break-words text-emerald-100">{session.preview || "等待模型开始返回内容…"}</pre>
+                          <div className="border-t border-emerald-400/15 px-3 py-2.5 space-y-2">
+                            <div className="text-[11px] text-emerald-100/60 font-semibold flex items-center justify-between">
+                              <span>{session.phaseMessage}</span>
+                              <span className="text-[10px] text-emerald-500/60 font-mono">{session.startedAt ? new Date(session.startedAt).toLocaleTimeString() : ""}</span>
+                            </div>
+
+                            {/* 上下文窗口 Input Prompt */}
+                            {(session.promptPreview || session.context.promptPreview) && (
+                              <div className="rounded border border-emerald-900/60 bg-[#040807] p-2 space-y-1">
+                                <div className="text-[10px] text-emerald-400/80 font-bold uppercase tracking-wider flex justify-between items-center">
+                                  <span>📥 上下文窗口 Input Prompt</span>
+                                  <span className="text-[9px] text-emerald-500/50">Context Window</span>
+                                </div>
+                                <pre className="m-0 whitespace-pre-wrap break-words text-[11px] text-slate-300 font-mono leading-relaxed max-h-48 overflow-y-auto">
+                                  {session.promptPreview || session.context.promptPreview}
+                                </pre>
+                              </div>
+                            )}
+
+                            {/* LLM 返回 Output */}
+                            <div className="rounded border border-emerald-800/40 bg-[#050b09] p-2 space-y-1">
+                              <div className="text-[10px] text-emerald-400/80 font-bold uppercase tracking-wider flex justify-between items-center">
+                                <span>📤 LLM 实时返回 Output</span>
+                                <span className="text-[9px] text-emerald-500/50">{session.totalChars.toLocaleString()} 字符</span>
+                              </div>
+                              <pre className="m-0 whitespace-pre-wrap break-words text-xs text-emerald-100 font-mono leading-relaxed max-h-60 overflow-y-auto">
+                                {session.preview || "等待模型开始返回内容…"}
+                              </pre>
+                            </div>
                           </div>
                         ) : null}
                       </section>
@@ -348,18 +325,9 @@ export default function LiveExecutionDialog(props: LiveExecutionDialogProps) {
               )}
             </div>
 
-            <footer className={cn(
-              "flex shrink-0 items-center justify-between gap-3 border-t border-emerald-400/25 bg-[#0d1714] px-3 text-xs text-emerald-100/65",
-              briefMode ? "py-1.5" : "py-2",
-            )}>
+            <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-emerald-400/25 bg-[#0d1714] px-3 py-2 text-xs text-emerald-100/65">
               <span>{followingLatest ? "正在跟随最新输出" : "已停留在当前阅读位置"}</span>
-              {!briefMode ? (
-                <Button type="button" size="sm" variant="ghost" className="h-7 px-2 font-mono text-xs text-emerald-200 hover:bg-emerald-400/10 hover:text-emerald-50" onClick={scrollToLatest}>
-                  回到最新输出
-                </Button>
-              ) : (
-                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-emerald-300/60">Live</span>
-              )}
+              <Button type="button" size="sm" variant="ghost" className="h-7 px-2 font-mono text-xs text-emerald-200 hover:bg-emerald-400/10 hover:text-emerald-50" onClick={scrollToLatest}>{i18next.t("liveExecution.liveExecutionDialog.3uc12v")}</Button>
             </footer>
           </DialogPrimitive.Content>
         </DialogPrimitive.Portal>

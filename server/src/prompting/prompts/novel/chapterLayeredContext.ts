@@ -301,7 +301,6 @@ function buildChapterBoundaryContract(
 
 export function buildChapterWriteContext(input: {
   bookContract: BookContractContext;
-  productionFoundationPrompt?: string | null;
   macroConstraints: MacroConstraintContext | null;
   volumeWindow: VolumeWindowContext | null;
   contextPackage: GenerationContextPackage;
@@ -336,7 +335,6 @@ export function buildChapterWriteContext(input: {
   });
   return {
     bookContract: input.bookContract,
-    productionFoundationPrompt: compactText(input.productionFoundationPrompt),
     macroConstraints: input.macroConstraints,
     volumeWindow: input.volumeWindow,
     narrativeProgressHint: input.contextPackage.narrativeProgressHint ?? null,

@@ -1,10 +1,12 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import { useEffect, useMemo, useState } from "react";
 import type { DirectorContinuationMode } from "@ai-novel/shared/types/novelDirector";
 import type {
   DirectorBookAutomationAction,
   DirectorBookAutomationProjection,
 } from "@ai-novel/shared/types/directorRuntime";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getDirectorBookAutomationProjection } from "@/api/novelDirector";
 import { continueNovelWorkflow } from "@/api/novelWorkflow";
@@ -31,12 +33,9 @@ import { NovelListHeader } from "./components/list/NovelListHeader";
 import { NovelListPagination } from "./components/list/NovelListPagination";
 import { NovelListSkeleton } from "./components/list/NovelListSkeleton";
 import { NovelProjectCard } from "./components/list/NovelProjectCard";
-import { NovelContinueCard, NovelShelfCard } from "./components/list/NovelShelfCard";
-import { NovelCoverDialog } from "./components/cover/NovelCoverDialog";
-import { createDefaultNovelBasicFormState, type NovelBasicFormState } from "./novelBasicInfo.shared";
 import {
   buildNovelListSummary,
-  getNovelWorkflowTask,
+  filterNovelList,
   NOVEL_LIST_PAGE_SIZE,
   type StatusFilter,
   type WritingModeFilter,
@@ -54,61 +53,29 @@ function createDownload(blob: Blob, fileName: string): void {
 }
 
 export default function NovelList() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
-  const storedView = typeof window !== "undefined" ? window.localStorage.getItem("novel-list-view") : null;
-  const initialView = searchParams.get("view") === "workbench" || searchParams.get("view") === "shelf"
-    ? searchParams.get("view") as "shelf" | "workbench"
-    : storedView === "workbench" ? "workbench" : "shelf";
-  const [view, setView] = useState<"shelf" | "workbench">(initialView);
   const [status, setStatus] = useState<StatusFilter>("all");
   const [writingMode, setWritingMode] = useState<WritingModeFilter>("all");
-  const [narrativeForm, setNarrativeForm] = useState<"all" | "short_story" | "long_novel">("all");
-  const [searchInput, setSearchInput] = useState("");
-  const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<"updated" | "created" | "progress">("updated");
   const [cockpitNovelId, setCockpitNovelId] = useState<string | null>(null);
-  const [coverNovelId, setCoverNovelId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const { candidateCount: recoveryCandidateCount, openDialog: openRecoveryDialog } = useTaskRecovery();
-  const effectiveSearch = view === "shelf" ? search : "";
-  const effectiveNarrativeForm = view === "shelf" ? narrativeForm : "all";
-  const effectiveSort = view === "shelf" ? sort : "updated";
 
   const novelListQuery = useQuery({
-    queryKey: [...queryKeys.novels.list(page, NOVEL_LIST_PAGE_SIZE), view, effectiveSearch, status, writingMode, effectiveNarrativeForm, effectiveSort],
-    queryFn: () => getNovelList({
-      page,
-      limit: NOVEL_LIST_PAGE_SIZE,
-      search: effectiveSearch,
-      status,
-      writingMode,
-      narrativeForm: effectiveNarrativeForm,
-      sort: effectiveSort,
-    }),
+    queryKey: queryKeys.novels.list(page, NOVEL_LIST_PAGE_SIZE),
+    queryFn: () => getNovelList({ page, limit: NOVEL_LIST_PAGE_SIZE }),
     staleTime: 30_000,
     refetchInterval: (query) => {
       const items = query.state.data?.data?.items ?? [];
       return items.some((novel) => {
-        const task = novel.narrativeForm === "short_story"
-          ? novel.latestCreationStudioTask
-          : novel.latestAutoDirectorTask;
+        const task = novel.latestAutoDirectorTask;
         return task?.status === "queued" || task?.status === "running" || task?.status === "waiting_approval";
       })
         ? 4000
         : false;
     },
   });
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setSearch(searchInput.trim()), 250);
-    return () => window.clearTimeout(timer);
-  }, [searchInput]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [view, search, status, writingMode, narrativeForm, sort]);
 
   const cockpitProjectionQuery = useQuery({
     queryKey: cockpitNovelId
@@ -126,10 +93,10 @@ export default function NovelList() {
     mutationFn: (id: string) => deleteNovel(id),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.novels.all });
-      toast.success("小说已删除。");
+      toast.success(i18next.t("dict.gen_fc09ee9d"));
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "删除小说失败。");
+      toast.error(error instanceof Error ? error.message : i18next.t("dict.gen_8ece8c38"));
     },
   });
 
@@ -142,10 +109,10 @@ export default function NovelList() {
     ),
     onSuccess: ({ blob, fileName }) => {
       createDownload(blob, fileName);
-      toast.success("导出已开始。");
+      toast.success(i18next.t("dict.gen_70576156"));
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "导出小说失败。");
+      toast.error(error instanceof Error ? error.message : i18next.t("dict.gen_45b8252a"));
     },
   });
 
@@ -179,8 +146,8 @@ export default function NovelList() {
         error instanceof Error
           ? error.message
           : input.mode === "auto_execute_range"
-            ? "继续自动执行当前章节范围失败。"
-            : "继续自动导演失败。",
+            ? i18next.t("toasts.failedAutoExecute")
+            : i18next.t("toasts.failedAutoDirector"),
       );
     },
   });
@@ -191,7 +158,11 @@ export default function NovelList() {
   const selectedCockpitNovel = allNovels.find((item) => item.id === cockpitNovelId) ?? null;
   const cockpitProjection = cockpitProjectionQuery.data?.data?.projection ?? null;
 
-  const novels = allNovels;
+  const novels = useMemo(() => filterNovelList({
+    novels: allNovels,
+    status,
+    writingMode,
+  }), [allNovels, status, writingMode]);
   const summary = useMemo(() => buildNovelListSummary(allNovels), [allNovels]);
 
   useEffect(() => {
@@ -209,59 +180,8 @@ export default function NovelList() {
   };
 
   const openNovelEditor = (novelId: string) => {
-    const novel = allNovels.find((item) => item.id === novelId);
-    navigate(novel?.narrativeForm === "short_story"
-      ? `/novels/${novelId}/story`
-      : `/novels/${novelId}/edit`);
+    navigate(`/novels/${novelId}/edit`);
   };
-
-  const handleViewChange = (nextView: "shelf" | "workbench") => {
-    setView(nextView);
-    window.localStorage.setItem("novel-list-view", nextView);
-    setSearchParams((current) => {
-      const next = new URLSearchParams(current);
-      next.set("view", nextView);
-      return next;
-    }, { replace: true });
-  };
-
-  const coverNovel = coverNovelId ? allNovels.find((item) => item.id === coverNovelId) ?? null : null;
-  const continueNovels = useMemo(
-    () => novels.filter((novel) => {
-      const task = getNovelWorkflowTask(novel);
-      return task?.status === "running" || task?.status === "waiting_approval";
-    }).slice(0, 3),
-    [novels],
-  );
-  const coverBasicForm = useMemo<NovelBasicFormState | null>(() => {
-    if (!coverNovel) return null;
-    const base = createDefaultNovelBasicFormState();
-    return {
-      ...base,
-      title: coverNovel.title,
-      description: coverNovel.description ?? "",
-      targetAudience: coverNovel.targetAudience ?? "",
-      bookSellingPoint: coverNovel.bookSellingPoint ?? "",
-      competingFeel: coverNovel.competingFeel ?? "",
-      first30ChapterPromise: coverNovel.first30ChapterPromise ?? "",
-      status: coverNovel.status,
-      writingMode: coverNovel.writingMode,
-      projectMode: coverNovel.projectMode ?? base.projectMode,
-      writingPlatformPreference: coverNovel.writingPlatform ?? base.writingPlatformPreference,
-      narrativePov: coverNovel.narrativePov ?? base.narrativePov,
-      pacePreference: coverNovel.pacePreference ?? base.pacePreference,
-      styleTone: coverNovel.styleTone ?? "",
-      emotionIntensity: coverNovel.emotionIntensity ?? base.emotionIntensity,
-      aiFreedom: coverNovel.aiFreedom ?? base.aiFreedom,
-      postGenerationStyleReviewEnabled: coverNovel.postGenerationStyleReviewEnabled,
-      defaultChapterLength: coverNovel.defaultChapterLength ?? base.defaultChapterLength,
-      estimatedChapterCount: coverNovel.estimatedChapterCount ?? base.estimatedChapterCount,
-      projectStatus: coverNovel.projectStatus ?? base.projectStatus,
-      storylineStatus: coverNovel.storylineStatus ?? base.storylineStatus,
-      outlineStatus: coverNovel.outlineStatus ?? base.outlineStatus,
-      resourceReadyScore: coverNovel.resourceReadyScore ?? base.resourceReadyScore,
-    };
-  }, [coverNovel]);
 
   const handleCockpitAction = (
     projection: DirectorBookAutomationProjection,
@@ -288,8 +208,6 @@ export default function NovelList() {
         recoveryCandidateCount={recoveryCandidateCount}
         summary={summary}
         onOpenRecovery={openRecoveryDialog}
-        view={view}
-        onViewChange={handleViewChange}
       />
 
       <NovelListFilterBar
@@ -297,13 +215,6 @@ export default function NovelList() {
         writingMode={writingMode}
         onStatusChange={setStatus}
         onWritingModeChange={setWritingMode}
-        view={view}
-        search={searchInput}
-        onSearchChange={setSearchInput}
-        narrativeForm={narrativeForm}
-        onNarrativeFormChange={setNarrativeForm}
-        sort={sort}
-        onSortChange={setSort}
       />
 
       {novelListQuery.isPending ? (
@@ -311,60 +222,37 @@ export default function NovelList() {
       ) : novelListQuery.isError ? (
         <Card>
           <CardHeader>
-            <CardTitle>加载小说列表失败</CardTitle>
-            <CardDescription>当前无法读取项目列表，可以重试一次。</CardDescription>
+            <CardTitle>{i18next.t("dict.gen_d7f76120")}</CardTitle>
+            <CardDescription>{i18next.t("dict.gen_6ad34b4c")}</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => void novelListQuery.refetch()}>重新加载</Button>
+            <Button onClick={() => void novelListQuery.refetch()}>{i18next.t("common.retry")}</Button>
           </CardContent>
         </Card>
       ) : novels.length === 0 ? (
         <NovelListEmptyState hasAnyNovel={allNovels.length > 0} />
       ) : (
         <>
-          {view === "shelf" ? (
-            <div className="space-y-7">
-              {continueNovels.length > 0 ? (
-                <section className="space-y-3">
-                  <h2 className="text-lg font-semibold">继续创作</h2>
-                  <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-3">
-                    {continueNovels.map((novel) => (
-                      <NovelContinueCard key={`continue-${novel.id}`} novel={novel} onManageCover={setCoverNovelId} />
-                    ))}
-                  </div>
-                </section>
-              ) : null}
-              <section className="space-y-3">
-                <h2 className="text-lg font-semibold">我的作品</h2>
-                <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-4">
-                  {novels.filter((novel) => !continueNovels.some((item) => item.id === novel.id)).map((novel) => (
-                    <NovelShelfCard key={novel.id} novel={novel} onManageCover={setCoverNovelId} onDownload={downloadNovelMutation.mutate} onDelete={handleDelete} />
-                  ))}
-                </div>
-              </section>
-            </div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {novels.map((novel) => (
-                <NovelProjectCard
-                  key={novel.id}
-                  novel={novel}
-                  continuePendingTaskId={continueWorkflowMutation.isPending
-                    ? continueWorkflowMutation.variables?.taskId ?? null
-                    : null}
-                  downloadPendingNovelId={downloadNovelMutation.isPending
-                    ? downloadNovelMutation.variables?.novelId ?? null
-                    : null}
-                  deletePendingNovelId={deleteNovelMutation.isPending ? deleteNovelMutation.variables ?? null : null}
-                  onOpenNovel={openNovelEditor}
-                  onOpenCockpit={setCockpitNovelId}
-                  onContinueWorkflow={continueWorkflowMutation.mutate}
-                  onDownload={downloadNovelMutation.mutate}
-                  onDelete={handleDelete}
-                />
-              ))}
-            </div>
-          )}
+          <div className="grid gap-4 md:grid-cols-2">
+            {novels.map((novel) => (
+              <NovelProjectCard
+                key={novel.id}
+                novel={novel}
+                continuePendingTaskId={continueWorkflowMutation.isPending
+                  ? continueWorkflowMutation.variables?.taskId ?? null
+                  : null}
+                downloadPendingNovelId={downloadNovelMutation.isPending
+                  ? downloadNovelMutation.variables?.novelId ?? null
+                  : null}
+                deletePendingNovelId={deleteNovelMutation.isPending ? deleteNovelMutation.variables ?? null : null}
+                onOpenNovel={openNovelEditor}
+                onOpenCockpit={setCockpitNovelId}
+                onContinueWorkflow={continueWorkflowMutation.mutate}
+                onDownload={downloadNovelMutation.mutate}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
           <NovelListPagination
             page={page}
             totalPages={totalPages}
@@ -373,23 +261,6 @@ export default function NovelList() {
           />
         </>
       )}
-
-      {coverNovel && coverBasicForm ? (
-        <NovelCoverDialog
-          open={Boolean(coverNovelId)}
-          novelId={coverNovel.id}
-          basicForm={coverBasicForm}
-          genreOptions={[]}
-          storyModeOptions={[]}
-          worldOptions={[]}
-          onOpenChange={(open) => {
-            if (!open) {
-              setCoverNovelId(null);
-              void queryClient.invalidateQueries({ queryKey: queryKeys.novels.all });
-            }
-          }}
-        />
-      ) : null}
 
       <Dialog
         open={Boolean(cockpitNovelId)}
@@ -401,29 +272,25 @@ export default function NovelList() {
       >
         <AppDialogContent
           className="max-w-2xl"
-          title="AI 驾驶舱"
+          title={i18next.t("dict.aiCockpit")}
           description={
             selectedCockpitNovel?.title
               ? `查看《${selectedCockpitNovel.title}》的 AI 推进状态和下一步动作。`
-              : "查看这本书的 AI 推进状态和下一步动作。"
+              : i18next.t("dict.gen_309ad2d0")
           }
         >
           {cockpitProjectionQuery.isPending ? (
-            <div className="rounded-lg border p-3 text-sm text-muted-foreground">
-              读取这本书的 AI 状态...
-            </div>
+            <div className="rounded-lg border p-3 text-sm text-muted-foreground">{i18next.t("novels.novelList.qc8pb5")}</div>
           ) : cockpitProjectionQuery.isError ? (
             <div className="rounded-lg border p-3">
-              <div className="text-sm text-muted-foreground">无法读取这本书的 AI 状态，请稍后重试。</div>
+              <div className="text-sm text-muted-foreground">{i18next.t("dict.gen_59ae355e")}</div>
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
                 className="mt-3"
                 onClick={() => void cockpitProjectionQuery.refetch()}
-              >
-                重新读取
-              </Button>
+              >{i18next.t("autoDirectorFollowUps.autoDirectorFollowUpCenterPage.itle66")}</Button>
             </div>
           ) : cockpitProjection ? (
             <AICockpit
@@ -437,7 +304,7 @@ export default function NovelList() {
               }}
             />
           ) : (
-            <AICockpit fallbackSummary="这本书没有需要处理的 AI 自动推进任务。" />
+            <AICockpit fallbackSummary={i18next.t("dict.gen_1f7096a6")} />
           )}
         </AppDialogContent>
       </Dialog>

@@ -25,8 +25,6 @@ import novelChapterSummaryRouter from "../production/http/novelChapterSummary";
 import novelDecisionsRouter from "../state/http/novelDecisions";
 import type { NovelHttpServices } from "./novelHttpServices";
 import { guardSimpleCreationUserWrites } from "./simpleCreationWriteGuard";
-import { registerShortStoryRoutes } from "../short-story/http/shortStoryRoutes";
-import { registerWritingPlatformRoutes } from "../writing-platform/http/writingPlatformRoutes";
 import {
   aiRevisionPreviewSchema,
   arcPlanParamsSchema,
@@ -38,9 +36,11 @@ import {
   characterParamsSchema,
   characterSchema,
   characterTimelineSyncSchema,
+  continuePreviewSchema,
   draftOptimizeSchema,
   hookGenerateSchema,
   idParamsSchema,
+  issueFixPreviewSchema,
   llmGenerateSchema,
   outlineGenerateSchema,
   pipelineJobParamsSchema,
@@ -88,9 +88,6 @@ export function registerNovelHttpRoutes(router: Router, services: NovelHttpServi
     novelService,
   });
 
-  registerShortStoryRoutes(router);
-  registerWritingPlatformRoutes(router);
-
   registerNovelFramingRoutes({
     router,
   });
@@ -111,6 +108,8 @@ export function registerNovelHttpRoutes(router: Router, services: NovelHttpServi
     chapterParamsSchema,
     rewritePreviewSchema,
     aiRevisionPreviewSchema,
+    continuePreviewSchema,
+    issueFixPreviewSchema,
     forwardBusinessError,
   });
 

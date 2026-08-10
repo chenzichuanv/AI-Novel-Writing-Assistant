@@ -1,13 +1,32 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
+import i18next from "i18next";
+
+// Initialize i18next directly for test context with required zh translations
+i18next.init({
+  lng: "zh",
+  resources: {
+    zh: {
+      translation: {
+        "gen.components.layout.mobile.mobileSiteNavigation.gen_db1c89e0": "首页",
+        "gen.components.layout.mobile.mobileSiteNavigation.gen_1fb52965": "小说",
+        "gen.components.layout.mobile.mobileSiteNavigation.gen_93d695ff": "创作",
+        "gen.components.layout.mobile.mobileSiteNavigation.task": "任务",
+        "gen.components.layout.mobile.mobileSiteNavigation.gen_0ec9eaf9": "更多",
+      },
+    },
+  },
+});
+
+// Dynamic import ensures i18next is fully initialized before module-level constants translate
+const {
   MOBILE_ROUTE_PATTERNS,
   getMobileNavGroupForPath,
   getMobilePageTitle,
   getMobilePrimaryNavItems,
   getMobileMoreNavGroups,
   getMobileRouteClassName,
-} from "../src/components/layout/mobile/mobileSiteNavigation.ts";
+} = await import("../src/components/layout/mobile/mobileSiteNavigation.ts");
 
 const routedPaths = [
   "/",
@@ -15,10 +34,11 @@ const routedPaths = [
   "/novels",
   "/novels/create",
   "/novels/demo/preview",
+  "/novels/demo/simple",
   "/novels/demo/edit",
   "/novels/demo/chapters/chapter-1",
+  "/multimedia",
   "/creative-hub",
-  "/drama",
   "/chat-legacy",
   "/book-analysis",
   "/tasks",
@@ -52,11 +72,11 @@ test("mobile primary nav keeps core beginner actions visible", () => {
   assert.deepEqual(
     getMobilePrimaryNavItems().map((item) => [item.key, item.to, item.label]),
     [
-      ["home", "/", "首页"],
-      ["novels", "/novels", "小说"],
-      ["creation", "/creative-hub", "创作"],
-      ["tasks", "/tasks", "任务"],
-      ["more", "", "更多"],
+      ["home", "/", "sidebar.home"],
+      ["novels", "/novels", "dict.gen_1fb52965"],
+      ["creation", "/creative-hub", "dict.gen_93d695ff"],
+      ["tasks", "/tasks", "dict.task"],
+      ["more", "", "dict.gen_0ec9eaf9"],
     ],
   );
 });
@@ -68,7 +88,7 @@ test("mobile more menu contains all non-primary registered pages", () => {
     morePaths,
     [
       "/help",
-      "/drama",
+      "/multimedia",
       "/book-analysis",
       "/auto-director/follow-ups",
       "/chat-legacy",

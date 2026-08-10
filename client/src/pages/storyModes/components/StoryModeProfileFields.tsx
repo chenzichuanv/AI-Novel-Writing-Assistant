@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import type { StoryModeProfile } from "@ai-novel/shared/types/storyMode";
 import SelectControl from "@/components/common/SelectControl";
 
@@ -21,6 +23,7 @@ export default function StoryModeProfileFields({
   value,
   onChange,
 }: StoryModeProfileFieldsProps) {
+  const { t } = useTranslation();
   const updateList = (field: keyof Pick<
     StoryModeProfile,
     "progressionUnits" | "allowedConflictForms" | "forbiddenConflictForms" | "mandatorySignals" | "antiSignals"
@@ -34,7 +37,7 @@ export default function StoryModeProfileFields({
   return (
     <div className="grid gap-3">
       <label className="space-y-2 text-sm">
-        <span className="font-medium text-foreground">核心驱动</span>
+        <span className="font-medium text-foreground">{i18next.t("dict.gen_07aae3dc")}</span>
         <textarea
           rows={2}
           className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
@@ -43,7 +46,7 @@ export default function StoryModeProfileFields({
         />
       </label>
       <label className="space-y-2 text-sm">
-        <span className="font-medium text-foreground">读者奖励</span>
+        <span className="font-medium text-foreground">{i18next.t("dict.gen_2cb381e4")}</span>
         <textarea
           rows={2}
           className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
@@ -53,7 +56,7 @@ export default function StoryModeProfileFields({
       </label>
       <div className="grid gap-3 md:grid-cols-2">
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-foreground">章节推进单位</span>
+          <span className="font-medium text-foreground">{i18next.t("dict.gen_941c3d26")}</span>
           <textarea
             rows={4}
             className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
@@ -62,7 +65,7 @@ export default function StoryModeProfileFields({
           />
         </label>
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-foreground">允许冲突形式</span>
+          <span className="font-medium text-foreground">{i18next.t("dict.gen_6c6eac2f")}</span>
           <textarea
             rows={4}
             className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
@@ -71,7 +74,7 @@ export default function StoryModeProfileFields({
           />
         </label>
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-foreground">禁止冲突形式</span>
+          <span className="font-medium text-foreground">{i18next.t("dict.gen_6a8c5e1e")}</span>
           <textarea
             rows={4}
             className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
@@ -80,7 +83,7 @@ export default function StoryModeProfileFields({
           />
         </label>
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-foreground">冲突上限</span>
+          <span className="font-medium text-foreground">{i18next.t("dict.gen_cb74d40c")}</span>
           <SelectControl
             className="w-full rounded-md border bg-background p-2 text-sm"
             value={value.conflictCeiling}
@@ -94,7 +97,7 @@ export default function StoryModeProfileFields({
       </div>
       <div className="grid gap-3 md:grid-cols-2">
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-foreground">化解方式</span>
+          <span className="font-medium text-foreground">{i18next.t("dict.gen_b6dc687b")}</span>
           <textarea
             rows={2}
             className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
@@ -103,7 +106,7 @@ export default function StoryModeProfileFields({
           />
         </label>
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-foreground">章节颗粒</span>
+          <span className="font-medium text-foreground">{i18next.t("dict.gen_29a87b53")}</span>
           <textarea
             rows={2}
             className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
@@ -112,7 +115,7 @@ export default function StoryModeProfileFields({
           />
         </label>
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-foreground">卷末奖励</span>
+          <span className="font-medium text-foreground">{i18next.t("dict.gen_d695fe48")}</span>
           <textarea
             rows={2}
             className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
@@ -121,7 +124,7 @@ export default function StoryModeProfileFields({
           />
         </label>
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-foreground">必须出现的信号</span>
+          <span className="font-medium text-foreground">{i18next.t("dict.gen_a398ebf6")}</span>
           <textarea
             rows={4}
             className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
@@ -131,7 +134,7 @@ export default function StoryModeProfileFields({
         </label>
       </div>
       <label className="space-y-2 text-sm">
-        <span className="font-medium text-foreground">必须避免的跑偏信号</span>
+        <span className="font-medium text-foreground">{i18next.t("dict.gen_ac30b9ba")}</span>
         <textarea
           rows={4}
           className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"

@@ -13,11 +13,6 @@ import type { NovelApplicationServices } from "../../../../services/novel/applic
 const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(NOVEL_LIST_PAGE_LIMIT_MAX).default(NOVEL_LIST_PAGE_LIMIT_DEFAULT),
-  search: z.string().trim().max(120).optional(),
-  status: z.enum(["draft", "published"]).optional(),
-  narrativeForm: z.enum(["short_story", "long_novel"]).optional(),
-  writingMode: z.enum(["original", "continuation"]).optional(),
-  sort: z.enum(["updated", "created", "progress"]).default("updated"),
 });
 
 const bookAnalysisSectionKeySchema = z.enum([
@@ -48,6 +43,7 @@ const createNovelSchema = z.object({
   secondaryStoryModeId: z.string().trim().optional(),
   worldId: z.string().trim().optional(),
   writingMode: z.enum(["original", "continuation"]).optional(),
+  language: z.string().trim().optional(),
   sourceNovelId: z.string().trim().optional(),
   sourceKnowledgeDocumentId: z.string().trim().optional(),
   continuationBookAnalysisId: z.string().trim().optional(),
@@ -78,6 +74,7 @@ const updateNovelSchema = z.object({
   commercialTags: z.array(z.string().trim().min(1).max(20)).max(6).nullable().optional(),
   status: z.enum(["draft", "published"]).optional(),
   writingMode: z.enum(["original", "continuation"]).optional(),
+  language: z.string().trim().nullable().optional(),
   sourceNovelId: z.string().trim().nullable().optional(),
   sourceKnowledgeDocumentId: z.string().trim().nullable().optional(),
   continuationBookAnalysisId: z.string().trim().nullable().optional(),
@@ -160,7 +157,7 @@ export function registerNovelBaseRoutes(input: RegisterNovelBaseRoutesInput): vo
   router.get("/", validate({ query: paginationSchema }), async (req, res, next) => {
     try {
       const query = paginationSchema.parse(req.query);
-      const data = await novelService.listNovels(query);
+      const data = await novelService.listNovels({ page: query.page, limit: query.limit });
       const response: ApiResponse<typeof data> = {
         success: true,
         data,
@@ -174,14 +171,7 @@ export function registerNovelBaseRoutes(input: RegisterNovelBaseRoutesInput): vo
 
   router.post("/", validate({ body: createNovelSchema }), async (req, res, next) => {
     try {
-      const createInput = req.body as z.infer<typeof createNovelSchema>;
-      const foundation = await novelCreateResourceRecommendationService.resolveRequired(createInput);
-      const data = await novelService.createNovel({
-        ...createInput,
-        genreId: foundation.genreId,
-        primaryStoryModeId: foundation.primaryStoryModeId,
-        secondaryStoryModeId: foundation.secondaryStoryModeId,
-      });
+      const data = await novelService.createNovel(req.body as z.infer<typeof createNovelSchema>);
       const response: ApiResponse<typeof data> = {
         success: true,
         data,

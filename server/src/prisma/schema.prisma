@@ -204,12 +204,6 @@ enum AgentRunStatus {
 enum NovelWorkflowLane {
   manual_create
   auto_director
-  creation_studio
-}
-
-enum NarrativeForm {
-  short_story
-  long_novel
 }
 
 enum NovelWorkflowTaskStatus {
@@ -332,14 +326,9 @@ model Novel {
   commercialTagsJson String?
   status            String      @default("draft")
   writingMode       String      @default("original")
+  language          String      @default("zh")
   projectMode       ProjectMode?
   creationExperience CreationExperience @default(professional)
-  narrativeForm     NarrativeForm @default(long_novel)
-  targetWordCount   Int?
-  derivedFromNovelId String?
-  writingPlatform    String?
-  writingPlatformProfileVersion Int?
-  writingPlatformSnapshotJson String?
   narrativePov      NarrativePov?
   pacePreference    PacePreference?
   styleTone         String?
@@ -371,8 +360,6 @@ model Novel {
   world             World?      @relation(fields: [worldId], references: [id], onDelete: SetNull)
   sourceNovel       Novel?      @relation("NovelContinuation", fields: [sourceNovelId], references: [id], onDelete: SetNull)
   continuationNovels Novel[]    @relation("NovelContinuation")
-  derivedFromNovel  Novel?      @relation("NovelDerivation", fields: [derivedFromNovelId], references: [id], onDelete: SetNull)
-  derivedNovels     Novel[]     @relation("NovelDerivation")
   sourceKnowledgeDocument KnowledgeDocument? @relation("NovelKnowledgeContinuation", fields: [sourceKnowledgeDocumentId], references: [id], onDelete: SetNull)
   continuationBookAnalysis BookAnalysis? @relation("NovelContinuationBookAnalysis", fields: [continuationBookAnalysisId], references: [id], onDelete: SetNull)
   chapters          Chapter[]
@@ -430,10 +417,11 @@ model Novel {
   sideEffectJobs     NovelSideEffectJob[]
   novelWorld         NovelWorld?
   factEntries        NovelFactEntry[]
-  intentVersions     NovelIntentVersion[]
-  shortStoryPlan     ShortStoryPlan?
-  shortStorySegments ShortStorySegment[]
-  creationStudioConfirmations CreationStudioConfirmation[]
+  videoProjects      VideoProject[]
+  sandboxBranches    SandboxBranch[]
+  sandboxSnapshots   SandboxSnapshot[]
+  sandboxChronologies SandboxChronology[]
+  customRelationBonds CharacterRelationBond[]
   createdAt          DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 
@@ -443,98 +431,8 @@ model Novel {
   @@index([worldId])
   @@index([writingMode])
   @@index([sourceNovelId])
-  @@index([derivedFromNovelId])
-  @@index([narrativeForm])
-  @@index([writingPlatform])
   @@index([sourceKnowledgeDocumentId])
   @@index([continuationBookAnalysisId])
-}
-
-model NovelIntentVersion {
-  id                    String   @id @default(cuid())
-  novelId               String?
-  workflowTaskId        String
-  previousVersionId     String?
-  version               Int
-  status                String   @default("proposed")
-  source                String   @default("initial")
-  originalExpression    String
-  structuredIntentJson  String
-  impactScopeJson       String?
-  schemaVersion         Int      @default(1)
-  novel                 Novel?   @relation(fields: [novelId], references: [id], onDelete: Cascade)
-  workflowTask          NovelWorkflowTask @relation(fields: [workflowTaskId], references: [id], onDelete: Cascade)
-  previousVersion       NovelIntentVersion? @relation("NovelIntentVersionHistory", fields: [previousVersionId], references: [id], onDelete: SetNull)
-  nextVersions          NovelIntentVersion[] @relation("NovelIntentVersionHistory")
-  shortStoryPlans       ShortStoryPlan[]
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-
-  @@unique([workflowTaskId, version])
-  @@index([novelId, status, version])
-  @@index([previousVersionId])
-}
-
-model CreationStudioConfirmation {
-  id                String   @id @default(cuid())
-  workflowTaskId    String   @unique
-  idempotencyKey    String
-  narrativeForm     NarrativeForm
-  novelId           String?
-  productionTaskId  String?
-  status            String   @default("claimed")
-  workflowTask      NovelWorkflowTask @relation(fields: [workflowTaskId], references: [id], onDelete: Cascade)
-  novel             Novel?   @relation(fields: [novelId], references: [id], onDelete: SetNull)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  @@unique([workflowTaskId, idempotencyKey])
-  @@index([novelId])
-  @@index([productionTaskId])
-}
-
-model ShortStoryPlan {
-  id                String   @id @default(cuid())
-  novelId           String   @unique
-  intentVersionId   String
-  status            String   @default("planning")
-  targetWordCount   Int
-  endingPromise     String
-  structureJson     String
-  qualityDebtJson   String?
-  auditResultJson   String?
-  schemaVersion     Int      @default(1)
-  novel             Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
-  intentVersion     NovelIntentVersion @relation(fields: [intentVersionId], references: [id], onDelete: Restrict)
-  segments          ShortStorySegment[]
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  @@index([intentVersionId])
-  @@index([status, updatedAt])
-}
-
-model ShortStorySegment {
-  id                String   @id @default(cuid())
-  planId            String
-  novelId           String
-  order             Int
-  targetWordCount   Int
-  content           String   @default("")
-  status            String   @default("pending")
-  version           Int      @default(1)
-  qualityResultJson String?
-  humanSnapshotJson String?
-  userEditedAt      DateTime?
-  generatedAt       DateTime?
-  plan              ShortStoryPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-  novel             Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  @@unique([planId, order])
-  @@index([novelId, order])
-  @@index([status, updatedAt])
 }
 
 model PromptAddendum {
@@ -599,30 +497,6 @@ model PromptTemplateVersion {
   notes           String?
   override        PromptTemplateOverride @relation(fields: [overrideId], references: [id], onDelete: Cascade)
   createdAt       DateTime               @default(now())
-
-  @@unique([overrideId, versionNo])
-  @@index([overrideId, createdAt])
-}
-
-model WritingPlatformProfileOverride {
-  id              String   @id @default(cuid())
-  platform        String   @unique
-  activeVersionId String?
-  versions        WritingPlatformProfileVersion[]
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([activeVersionId])
-}
-
-model WritingPlatformProfileVersion {
-  id          String   @id @default(cuid())
-  overrideId  String
-  versionNo   Int
-  profileJson String
-  notes       String?
-  override    WritingPlatformProfileOverride @relation(fields: [overrideId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
 
   @@unique([overrideId, versionNo])
   @@index([overrideId, createdAt])
@@ -798,6 +672,9 @@ model Character {
   fromResourceEvents CharacterResourceEvent[] @relation("CharacterResourceEventFromHolder")
   toResourceEvents CharacterResourceEvent[] @relation("CharacterResourceEventToHolder")
   syncProposals   CharacterSyncProposal[]
+  customPropertiesJson String? @default("{}")
+  outgoingRelationBonds CharacterRelationBond[] @relation("CharacterRelationBondSource")
+  incomingRelationBonds CharacterRelationBond[] @relation("CharacterRelationBondTarget")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -1510,6 +1387,10 @@ model World {
   libraryItems       WorldPropertyLibrary[]
   novelWorlds        NovelWorld[]
   assets             WorldAsset[]
+  locations          Location[]
+  customPropertySchemas WorldCustomPropertySchema[]
+  customRelationSchemas WorldCustomRelationSchema[]
+  customConflictSchemas WorldCustomConflictSchema[]
   createdAt          DateTime              @default(now())
   updatedAt          DateTime              @updatedAt
 }
@@ -2216,8 +2097,6 @@ model NovelWorkflowTask {
   directorEvents     DirectorEvent[]
   directorArtifacts  DirectorArtifact[]
   directorLlmUsageRecords DirectorLlmUsageRecord[]
-  intentVersions     NovelIntentVersion[]
-  creationStudioConfirmation CreationStudioConfirmation?
   createdAt          DateTime                @default(now())
   updatedAt          DateTime                @updatedAt
 
@@ -4054,3 +3933,370 @@ model ComicBatchJob {
   @@index([episodeId, status])
   @@index([type, status])
 }
+
+model VideoProject {
+  id             String   @id @default(cuid())
+  title          String
+  novelId        String?
+  chapterIdsJson String?
+  sourceType     String   @default("chapter_adaptation")
+  pipeline       String?
+  status         String   @default("draft")
+  scriptJson     String?
+  renderTaskId   String?
+  resultUrl      String?
+  costEstimate   Float?
+  actualCost     Float?
+  errorMessage   String?
+  configJson     String?
+  novel          Novel?   @relation(fields: [novelId], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([novelId, status])
+  @@index([status, updatedAt])
+}
+
+// -------------------------------------------------------------
+// World Sandbox Simulator Models
+// -------------------------------------------------------------
+
+model Location {
+  id                  String              @id @default(cuid())
+  worldId             String
+  name                String
+  latitude            Float
+  longitude           Float
+  elevation           Float
+  biomeType           String
+  terrainType         String
+  hasRiver            Boolean             @default(false)
+  soilMoistureBase    Float               @default(0.3)
+  world               World               @relation(fields: [worldId], references: [id], onDelete: Cascade)
+  sandboxChronologies SandboxChronology[]
+
+  @@index([worldId])
+}
+
+model WorldCustomPropertySchema {
+  id            String   @id @default(cuid())
+  worldId       String
+  targetType    String
+  propertyName  String
+  propertyLabel String
+  dataType      String
+  typeMetadata  String?
+  description   String?
+  defaultValue  String?
+  aiGuidance    String?
+  world         World    @relation(fields: [worldId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([worldId, targetType, propertyName])
+  @@index([worldId])
+}
+
+model WorldCustomRelationSchema {
+  id              String   @id @default(cuid())
+  worldId         String
+  bondType        String
+  bondLabel       String
+  description     String?
+  defaultLeverage Float    @default(1.0)
+  aiGuidance      String?
+  world           World    @relation(fields: [worldId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+
+  @@unique([worldId, bondType])
+  @@index([worldId])
+}
+
+model WorldCustomConflictSchema {
+  id              String   @id @default(cuid())
+  worldId         String
+  conflictType    String
+  conflictLabel   String
+  arbitrationRule String
+  climaxCriteria  String
+  world           World    @relation(fields: [worldId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+
+  @@unique([worldId, conflictType])
+  @@index([worldId])
+}
+
+model SandboxBranch {
+  id              String             @id @default(cuid())
+  novelId         String
+  name            String
+  parentBranchId  String?
+  parentForkTick  Int?
+  isMain          Boolean            @default(false)
+  novel           Novel              @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  snapshots       SandboxSnapshot[]
+  chronologies    SandboxChronology[]
+  createdAt       DateTime           @default(now())
+
+  @@index([novelId])
+  @@index([parentBranchId])
+}
+
+model SandboxSnapshot {
+  id                  String             @id @default(cuid())
+  novelId             String
+  branchId            String
+  tickIndex           Int
+  timeLabel           String?
+  stateJson           String
+  ecologicalStateJson String?
+  branch              SandboxBranch      @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  novel               Novel              @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  createdAt           DateTime           @default(now())
+
+  @@unique([branchId, tickIndex])
+  @@index([novelId, branchId])
+}
+
+model SandboxChronology {
+  id                String             @id @default(cuid())
+  novelId           String
+  branchId          String
+  tickIndex         Int
+  locationId        String
+  title             String
+  summary           String
+  observableDetails String
+  hiddenTruth       String?
+  branch            SandboxBranch      @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  novel             Novel              @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  location          Location           @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  createdAt         DateTime           @default(now())
+
+  @@index([novelId, branchId, tickIndex])
+  @@index([novelId, locationId])
+}
+
+model CharacterRelationBond {
+  id                String    @id @default(cuid())
+  novelId           String
+  sourceCharacterId String
+  targetCharacterId String
+  bondType          String
+  description       String
+  leverageWeight    Float     @default(1.0)
+  expiryTick        Int?
+  novel             Novel     @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  sourceCharacter   Character @relation("CharacterRelationBondSource", fields: [sourceCharacterId], references: [id], onDelete: Cascade)
+  targetCharacter   Character @relation("CharacterRelationBondTarget", fields: [targetCharacterId], references: [id], onDelete: Cascade)
+  createdAt         DateTime  @default(now())
+
+  @@index([novelId])
+  @@index([sourceCharacterId])
+  @@index([targetCharacterId])
+}
+
+model StylePatch {
+  id                String   @id @default(cuid())
+  novelId           String
+  ruleKey           String
+  promptInstruction String
+  enabled           Boolean  @default(true)
+  violationCount    Int      @default(1)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([novelId, ruleKey])
+  @@index([novelId])
+}
+
+model AgentExecutableTodo {
+  id              String   @id @default(uuid())
+  novelId         String
+  directorTaskId  String
+  agentRole       String
+  title           String
+  stageId         String
+  chapterIndex    Int?
+  orderIndex      Int
+  status          String   // "PENDING", "CLAIMED", "COMPLETED", "FAILED"
+  claimedByWorker String?
+  claimedAtMs     BigInt?
+  evidencePayload String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([novelId, status])
+  @@index([directorTaskId, orderIndex])
+}
+
+// 美股投资组合与每日调仓智能体模型
+model StockPortfolio {
+  id             String               @id @default(uuid())
+  userId         String               @default("default_user")
+  name           String               @default("MooMoo 美股主仓位")
+  sourceType     String               @default("MOOMOO") // MOOMOO, MANUAL, CSV_IMPORT
+  baseCurrency   String               @default("USD")
+  totalBudget    Float                @default(0.0) // 计划新增/可调动新预算
+  cashBalance    Float                @default(0.0) // 当前闲置现金
+  riskPreference String               @default("BALANCED") // AGGRESSIVE, BALANCED, CONSERVATIVE
+  positions      StockPosition[]
+  dailyStrategies StockDailyStrategy[]
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@index([userId])
+}
+
+model StockPosition {
+  id           String         @id @default(uuid())
+  portfolioId  String
+  portfolio    StockPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  symbol       String         // 如 "NVDA", "AAPL", "TSLA"
+  companyName  String?
+  shares       Float          // 持有股数
+  costBasis    Float          // 平均持仓成本 ($)
+  marketPrice  Float?         // 最新单股市价 ($)
+  targetWeight Float?         // 目标仓位权重占比 (0.0 - 1.0)
+  notes        String?        // 个人观察笔记/买入逻辑
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([portfolioId, symbol])
+}
+
+model StockDailyStrategy {
+  id                  String         @id @default(uuid())
+  portfolioId         String
+  portfolio           StockPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  strategyDate        String         // 日期 YYYY-MM-DD
+  marketOverview      String         // 美股宏观与隔夜大盘概述
+  actionsJson         String         // 结构化买/卖/观望调仓建议列表 (JSON)
+  riskAlertsJson      String         // 风控提示与集中度预警 (JSON)
+  institutionalReport String         // 专业机构投研视角内容
+  narrativeReport     String         // 爽感战法/剧情化降维解读
+  status              String         @default("COMPLETED") // PENDING, GENERATING, COMPLETED, FAILED
+  // === 记忆治理与 P&L KPI 字段 ===
+  mode                String         @default("FRESH")     // FRESH | REPLAN | ADJUST
+  positionDriftJson   String?        // 触发本次指南的持仓变化记录 JSON (PositionChange[])
+  previousStrategyId  String?        // 上一条指南 ID（连续推演链）
+  projectedPnLJson    String?        // 指南预期 P&L JSON (ProjectedPnLSummary)
+  retroPnLJson        String?        // 复盘实现 P&L JSON（下次生成时回填）
+  retroPnLScore       Float?         // 指南质量得分 0-100（由复盘 P&L 计算）
+  compressedSummary   String?        // 浓缩摘要（~150 tokens，用于 Warm Memory 注入）
+  isArchived          Boolean        @default(false) // 已归档（超过 7 天且复盘完成）
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  @@index([portfolioId, strategyDate])
+  @@index([portfolioId, isArchived])
+}
+
+model StockMarketIntelCache {
+  id        String   @id @default(uuid())
+  intelDate String   // 日期 YYYY-MM-DD
+  symbol    String?  // null 代表宏观/大盘，非 null 代表个股新闻
+  title     String
+  summary   String
+  source    String?
+  createdAt DateTime @default(now())
+
+  @@index([intelDate, symbol])
+}
+
+// 股票专属数据库持久化知识图谱 Store (按每日新闻、OpenD 盘口与人工编辑更新)
+model StockKnowledgeGraphStore {
+  id                String   @id @default(uuid())
+  portfolioId       String   @default("default_portfolio")
+  symbol            String   // 如 "AAPL", "AMD", "NVDA", "AMZN", "SPCX"
+  nodesJson         String   // 持久化节点集 JSON (KnowledgeGraphEntityNode[])
+  edgesJson         String   // 持久化关系边集 JSON (KnowledgeGraphRelationEdge[])
+  newsCatalystsJson String   // 每日动态快讯 JSON (string[])
+  guidanceText      String?  // 专属研判指南
+  updatedAt         DateTime @updatedAt
+
+  @@unique([portfolioId, symbol])
+  @@index([portfolioId, symbol])
+}
+
+// 持仓快照历史（用于持仓变化检测与复盘 P&L 归因）
+model StockPortfolioSnapshot {
+  id               String   @id @default(uuid())
+  portfolioId      String
+  strategyId       String?  // 对应指南 ID（可为空，表示非指南触发的同步快照）
+  snapshotDate     String   // YYYY-MM-DD HH:mm（快照时刻）
+  positionsJson    String   // 持仓快照 JSON ([{symbol, shares, costBasis, marketPrice}])
+  cashBalance      Float
+  totalMarketValue Float    @default(0) // 快照时刻总市值
+  totalCostBasis   Float    @default(0) // 快照时刻总成本
+  totalPnL         Float    @default(0) // 快照时刻总浮盈 (totalMarketValue - totalCostBasis)
+  sourceType       String   @default("OPEND") // OPEND | MANUAL | SYNC
+  createdAt        DateTime @default(now())
+
+  @@index([portfolioId, snapshotDate])
+  @@index([portfolioId, strategyId])
+}
+
+// 交易纪律账本 — Cold Memory 核心（从每日复盘中提炼，永久积累）
+model StockTradingDiscipline {
+  id              String   @id @default(uuid())
+  portfolioId     String
+  disciplineText  String   // 规则正文（1-2句话，~40 tokens）
+  relatedSymbol   String?  // 相关股票（null 表示通用规则）
+  pnlEvidence     Float    @default(0)   // P&L 证据（正=避免损失，负=错误代价，单位$）
+  reinforceCount  Int      @default(1)   // 被强化次数（每次复盘再次触发 +1）
+  confidence      Float    @default(0.5) // 可信度 0.0-1.0（随强化次数提升）
+  lastReinforced  String   // YYYY-MM-DD（最近一次被强化的日期）
+  isPinned        Boolean  @default(false) // 用户手工固定，永不遗忘
+  isDeprecated    Boolean  @default(false) // 已过时标记（降权但不删除）
+  sourceStrategyId String? // 首次提炼来源的指南 ID
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([portfolioId, relatedSymbol])
+  @@index([portfolioId, isDeprecated])
+}
+
+// GA-Argus: Director Working Contract Ledger (Kt)
+model DirectorWorkingContract {
+  id                    String   @id @default(uuid())
+  novelId               String
+  version               Int      @default(1)
+  standingIntentJson    String   // JSON encoded StandingIntent (\iota)
+  operationalObjective  String   // JSON encoded OperationalObjective (o_t)
+  constraintsJson       String   // JSON encoded ContractConstraints (c_t)
+  verificationCriteria  String   // JSON encoded VerificationCriteria (v_t)
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([novelId, isActive])
+}
+
+// GA-Argus: Falsified Route Ledger (Dead Branches / Rejected Paths)
+model DirectorFalsifiedRoute {
+  id                        String   @id @default(uuid())
+  novelId                   String
+  volumeOrder               Int?
+  chapterOrder              Int?
+  failedPlanSummary         String
+  rejectionReason           String
+  rootCauseCode             String
+  evidenceArtifactId        String?
+  negativePromptConstraint  String
+  createdAt                 DateTime @default(now())
+
+  @@index([novelId])
+}
+
+// GA-Argus: Persistent Runtime State (Ht: Memory, Skills, Dynamic Verifiers)
+model DirectorRuntimeState {
+  id                  String   @id @default(uuid())
+  novelId             String   @unique
+  verifiedSkillsJson  String   @default("[]") // Accumulated writing skills
+  customVerifiersJson String   @default("[]") // Project-specific quality verifiers
+  totalPivotsCount    Int      @default(0)
+  totalBlockedCount   Int      @default(0)
+  updatedAt           DateTime @updatedAt
+}
+
