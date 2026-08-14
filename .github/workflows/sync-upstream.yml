@@ -1,0 +1,52 @@
+name: Sync Upstream
+
+on:
+  schedule:
+    # 每天北京时间 8:00 自动同步（UTC 0:00）
+    - cron: '0 0 * * *'
+  # 支持手动触发
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add Upstream Remote
+        run: |
+          git remote add upstream https://github.com/ExplosiveCoderflome/AI-Novel-Writing-Assistant.git
+          git fetch upstream
+
+      - name: Merge Upstream Changes
+        id: merge
+        run: |
+          git merge upstream/main --no-edit
+          echo "status=success" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Handle Merge Conflict
+        if: steps.merge.outputs.status != 'success'
+        run: |
+          echo "::warning::检测到合并冲突，自动同步中止。请手动解决冲突后再同步。"
+          git merge --abort || true
+          exit 1
+
+      - name: Push to Origin
+        if: steps.merge.outputs.status == 'success'
+        run: |
+          git push origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
